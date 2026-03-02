@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OKX Content Guide</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        brand: { 50:'#f0f4ff',100:'#dbe4ff',200:'#bac8ff',300:'#91a7ff',400:'#748ffc',500:'#5c7cfa',600:'#4c6ef5',700:'#4263eb',800:'#3b5bdb',900:'#364fc7' },
+        surface: { 50:'#fafafa',100:'#f4f4f5',200:'#e4e4e7',300:'#d4d4d8',400:'#a1a1aa',500:'#71717a',600:'#52525b',700:'#3f3f46',800:'#27272a',900:'#18181b' }
+      }
+    }
+  }
+}
+</script>
+<style>
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:9999px}
+</style>
+</head>
+<body class="bg-surface-50 text-surface-900">
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+const { useState, useMemo, useRef, useCallback, useEffect } = React;
+
+// ── DATA ──────────────────────────────────────────────
+const voiceAndTone = {
+  voice: {
+    acronym: 'BOLD',
+    traits: [
+      { letter:'B', word:'Brave', desc:'We take bold stances and lead with confidence.' },
+      { letter:'O', word:'Optimistic', desc:'We focus on possibilities and the positive potential of crypto.' },
+      { letter:'L', word:'Level-headed', desc:'We stay calm, balanced, and rational in all communications.' },
+      { letter:'D', word:'Dependable', desc:'We are trustworthy, consistent, and reliable in our messaging.' },
+    ],
+  },
+  tone: {
+    acronym: 'FOCUSED',
+    traits: [
+      { letter:'F', word:'Friendly', desc:'Warm, approachable, and personable.' },
+      { letter:'O', word:'Open-minded', desc:'Welcoming of different perspectives and inclusive.' },
+      { letter:'C', word:'Clear', desc:'Easy to understand, no jargon, no ambiguity.' },
+      { letter:'U', word:'Useful', desc:'Every word serves a purpose and helps the user.' },
+      { letter:'S', word:'Supportive', desc:'We guide and help users through challenges.' },
+      { letter:'E', word:'Empowering', desc:'We help users feel capable and in control.' },
+      { letter:'D', word:'Delightful', desc:'We add moments of joy and personality where appropriate.' },
+    ],
+  },
+};
+
+const contentPrinciples = [
+  { title:'Keep it short', rules:['Help people do their task and move on','Write at a 5th grade reading level','Be efficient \u2014 people read by scanning','Use active voice and present tense','Use contractions'] },
+  { title:'Talk like a person', rules:['Use familiar, common words to support localization','Respond to what your audience is thinking, feeling, and trying to do','Avoid jargon','Use contractions'] },
+  { title:'Get organized', rules:['Use headers, lists, topic sentences, and summaries','Create order and show priority','Sequence actions, benefits, and next steps','Write in context so messages are appropriate at every step'] },
+];
+
+const toneFramework = [
+  { situation:'Empty states', tones:['Clear','Useful','Supportive'], desc:'When the system has no information to display. Provide a reason, solution, and showcase platform value.', guidelines:['Provide a reason and solution','Show brand personality with illustrations','Use creative content to build emotional connection','Think from user perspective \u2014 what can we do so they don\'t leave frustrated?'], doEx:'No transactions yet. Start trading to see your history here.', dontEx:'Nothing to display.' },
+  { situation:'Error messages', tones:['Clear','Supportive','Friendly'], desc:'When something goes wrong. Answer: What happened? Why? What can the user do?', guidelines:['Don\'t blame OKX or the user','Keep the user in the funnel with clear solutions','Build trust through professional, calm messaging','Help reduce customer support contacts','Reassure the user that everything is under control'], doEx:'Failed to load. Refresh the page, or check your connection.', dontEx:'We failed to load the page. We\'re sorry for the inconvenience.' },
+  { situation:'Success messages', tones:['Clear','Friendly','Delightful'], desc:'Confirming a completed action. Use active voice, be concise.', guidelines:['Use active voice: "You\'ve successfully transferred funds"','Reserve passive voice when focus should be on the result','Maintain consistent voice throughout the flow','Keep confirmations short \u2014 put extra info in a subheader'], doEx:'Congrats! You\'ve made your first deposit.', dontEx:'Redemption successful! Check your account balance to see how much you\'ve made!' },
+  { situation:'Headers & subheaders', tones:['Clear','Friendly','Delightful'], desc:'Page and section headers that guide users.', guidelines:['Make headers catchy but not too long','Add additional information to subheaders','Header and subheader should tell a story \u2014 not be repetitive','Use sentence case'], doEx:'Start your crypto journey', dontEx:'Start Your Crypto Journey Here Now' },
+  { situation:'Marketing content', tones:['Clear','Friendly','Delightful'], desc:'Brand-building and conversion content. Value-prop driven and catchy.', guidelines:['Use first-person (we/our) in public-facing content','Focus on benefits, not features','Be catchy without overselling','Avoid cliches like "make money"'], doEx:'We\'re listing $ICE.', dontEx:'OKX is listing $ICE.' },
+  { situation:'Push notifications', tones:['Clear','Useful'], desc:'Short alerts on user devices. Be action-oriented and benefit-focused.', guidelines:['Link to a specific screen for action','Get to the point \u2014 users want quick updates','Focus on the benefit','Avoid sensitive info','No emoji unless reviewed','Title max 50 chars, Body max 150 chars'], doEx:'We\'re here to help. Our support can help you complete verification.', dontEx:'You\'re missing out big time! The market will move and will you be ready?' },
+  { situation:'Text messages (SMS)', tones:['Clear','Useful'], desc:'Short alerts about account changes. Users spend seconds reading.', guidelines:['Write "text message" not "SMS"','Keep under 160 characters','Be concise and clear','Avoid confidential information'], doEx:'Your OKX withdrawal of 1.5 BTC has been confirmed.', dontEx:'Dear user, we would like to inform you that your recent withdrawal request has been processed.' },
+  { situation:'Tooltips', tones:['Clear','Open-minded'], desc:'Brief contextual help on hover or tap.', guidelines:['Don\'t use for info vital to task completion','Keep content brief and helpful','Can be shown as bottom sheet or info icon'], doEx:'The estimated liquidation price is the price at which we\'ll liquidate your open position.', dontEx:'This is the price at which an open position will be liquidated by the system.' },
+  { situation:'Banners', tones:['Clear','Useful','Delightful'], desc:'Attention-catching elements under menus. Up to 103 characters.', guidelines:['Be action-oriented \u2014 link to where users can act','Focus on the benefit','Don\'t interrupt users completing tasks','Give a reason to click the CTA','Be brief and catchy','Max 103 characters'], doEx:'Exclusive offers for new users \u2014 get up to 30% APY on USDT.', dontEx:'You want 30% APY on USDT? You\'ve come to the right place.' },
+  { situation:'Emails', tones:['Clear','Friendly','Useful'], desc:'Transactional or marketing emails. Lead with the most important info.', guidelines:['Subject: ~50 chars (5\u20137 words)','Preheader: 40\u201370 chars','Start with most important info','One primary CTA only','Use bullets for legibility'], doEx:'Enjoy 14 days of zero trading fees on us.', dontEx:'We value you as a user, and we\'d like to express our appreciation by offering you a special offer.' },
+  { situation:'Enthusiastic expressions', tones:['Clear','Delightful'], desc:'Interjections like "Success" or "Congratulations". Use sparingly.', guidelines:['Limit use \u2014 we\'re a regulated financial business','Avoid "Congrats!" or "You did it!"','Avoid unnecessary "please" and "sorry"'], doEx:'Deposit complete.', dontEx:'Congrats! You absolutely nailed it!' },
+  { situation:'UI references', tones:['Clear','Useful'], desc:'When referring to interface elements in instructional content.', guidelines:['Don\'t bold or quote UI elements','Match capitalization to on-screen appearance','Capitalize branded terms','Avoid UI names (button, tab, menu)','Avoid directional language','Use verbs: explore, go to, open, select, check'], doEx:'Go to Discover', dontEx:'Go to the "Discover" tab in the bottom menu' },
+];
+
+const guidelineSections = [
+  { id:'active-voice', title:'Active and passive voice', cat:'Grammar', content:'Stick to active voice. The subject does the action. Easier to read, more conversational.', rules:['Use active voice as default','Only passive when you truly can\'t write it any other way'], doExamples:['We keep history for 3 months.','The estimated liquidation price is the price at which we\'ll liquidate your open position.'], dontExamples:['Your history can be kept for 3 months.','The estimated liquidation price is the price at which an open position will be liquidated.'] },
+  { id:'abbreviations', title:'Abbreviations', cat:'Punctuation', content:'Use abbreviations only if readers will understand. When in doubt, spell it out.', rules:['No periods in long abbreviations (FBI, CEO)','Periods in 2-letter abbreviations (U.S., U.N.)','Spell full form at first mention, then abbreviate','Include abbreviations in brackets: Non-fungible tokens (NFTs)','Don\'t use i.e. and e.g.','Use "FAQ" not "FAQs"','Don\'t abbreviate "estimated"','Abbreviate months as 3 letters: Jan, Feb, Mar','Use "min" and "max" without periods'], doExamples:['Non-fungible tokens (NFTs) are very popular.','The min profit-sharing ratio is 1%.','Max file size: 30 MB.'], dontExamples:['NFTs (non-fungible tokens) are very popular.','The min. profit-sharing ratio is 1%.','Max. file size: 30 MB.'] },
+  { id:'ampersand', title:'Ampersand (&)', cat:'Punctuation', content:'Don\'t use ampersands in body text or headers. Only for trademarked nouns.', rules:['Use "and" in body text and headers','Only & for trademarks like H&R Block'], doExamples:['Deposit and withdraw'], dontExamples:['Deposit & withdraw'] },
+  { id:'contractions', title:'Contractions', cat:'Grammar', content:'Contractions make content more casual and friendly. Use them when talking to users.', rules:['Use contractions in most product content','Exceptions: legal docs, technical docs, regulated content'], doExamples:['Can\'t','It\'s','There\'s','Couldn\'t'], dontExamples:['Cannot','It is','There is','Could not'] },
+  { id:'comma', title:'Oxford comma', cat:'Punctuation', content:'We use the Oxford comma. Avoid comma splices \u2014 use periods and short sentences.', rules:['Always use Oxford comma (serial comma)','Commas for month, day, and year dates','No commas for month-year or month-day only','Comma after greetings','Avoid comma splices'], doExamples:['Buy, sell, or deposit crypto.','This promotion ends on March 3, 2024.','Network disconnected. Try again later.'], dontExamples:['Buy, sell or deposit crypto.','This promotion ends on March 3 2024.','Network disconnected, try again later.'] },
+  { id:'ellipsis', title:'Ellipsis', cat:'Punctuation', content:'Don\'t use ellipses in product content. Not for loading, placeholders, or dramatic effect.', rules:['No ellipsis for loading states','No ellipsis in placeholders','No ellipsis for dramatic effect','Only exception: truncated content'], doExamples:['Processing','Enter your response'], dontExamples:['Processing...','Enter your response...','But wait ... there\'s more!'] },
+  { id:'exclamation', title:'Exclamation points', cat:'Punctuation', content:'Use sparingly. Avoid causing alarm. OK for congratulatory messages. Avoid on homepage.', rules:['Use sparingly','OK for congratulatory messages','Avoid on homepage','Don\'t cause alarm or distress'], doExamples:['You\'re earning','Congrats! You\'ve made your first deposit.'], dontExamples:['You\'re earning!','OK!!!!','Our new product will grow your holdings exponentially!'] },
+  { id:'capitalization', title:'Capitalization', cat:'Formatting', content:'Sentence case is default for everything: titles, headers, buttons, menu items.', rules:['Sentence case for everything','Never all uppercase except acronyms','Capitalize branded/trademarked terms','Capitalize crypto names and networks','Legal titles in title case (Terms & Conditions)'], doExamples:['Action required: Log in to secure your funds.','The most popular crypto is Bitcoin (BTC).','Shiba Inu'], dontExamples:['Action required: log in to secure your funds.','The most popular crypto is bitcoin (btc).','Shiba inu'] },
+  { id:'cta', title:'CTA buttons and links', cat:'Formatting', content:'Familiar words, predictable patterns. Lead with a verb. Keep CTAs under 4 words.', rules:['Links: verb + direct object structure','Put links at end of sentences','Don\'t show actual URLs','Buttons: lead with a verb','Keep CTAs to 1\u20132 words','Max 2 CTAs per screen','Use "Select" not "Click" or "Tap"','Use "Go to" not "See"','Sentence case except "OK"'], doExamples:['Next','Continue','Done','OK','Get started','Select','Go to'], dontExamples:['Click','Tap','See','Got it','Check it out'] },
+  { id:'emoji', title:'Emoji', cat:'Formatting', content:'Don\'t use emoji in product content. They aren\'t universal.', rules:['No emoji in product content','Check banned emoji list','Consider screen reader experience','Consider iOS vs Android rendering','Consider translation impact'] },
+  { id:'pronouns', title:'Pronouns', cat:'Grammar', content:'Use "you/your" for product. "We/our" for marketing. Singular "they" is OK.', rules:['Product: "you" and "your"','Marketing: "we" and "our"','Legal: "I" and "my"','FAQ: "I/my" in question, "we/us" in answer','Avoid first person in negative contexts','Singular "they" as gender-neutral'], doExamples:['We\'re thrilled to announce {token} will be listed.','You must submit your request by end-of-day.','Increase your margin or your position will be liquidated.'], dontExamples:['OKX is thrilled to announce {token} will be listed.','Users must submit requests by end-of-day.','Increase your margin or we will liquidate your position.'] },
+  { id:'numbers', title:'Numbers', cat:'Numbers', content:'Spell out "one" and "zero". Numerals for 2-9. Always numerals for percents, ranges, time.', rules:['Spell out "one" and "zero", numerals 2\u20139','Headers: OK to start with numerals','Body: spell out numbers at start of sentence','Adjacent numbers: spell out one','Ordinals: spell out first\u2013third, numerals 4th+','Spell out casual expressions'], doExamples:['Zero trading fees','5 ways to help you save','The team created ten 2-page help articles'], dontExamples:['0 trading fees','The team created 10 2-page help articles'] },
+  { id:'amounts', title:'Amounts and values', cat:'Numbers', content:'Specific formatting for decimals, separators, symbols, and tickers.', rules:['Decimal: period (.)','Thousands: comma (,)','Percentage: no space (25%)','Currency symbol before number ($100.00)','File size: capitalized with space (5 GB)','K/M/B for round numbers','Fiat: max 2 decimals','Crypto: max 8 decimals, no trailing zeros'] },
+  { id:'tickers', title:'Currency tickers', cat:'Numbers', content:'Tickers after numbers with space. Use for primary values, symbols for subsequent references.', rules:['Tickers after numbers: 1,500 USDT','Use tickers for primary values','Always use tickers with crypto','Don\'t mix symbols and tickers','Symbols before numbers: $1,500'], doExamples:['1,500 USDT','10 USD or $10','Subscribe and get $10 in BTC'], dontExamples:['1,500USDT','$10 USD','Subscribe and get 10 Bitcoin'] },
+  { id:'dates', title:'Dates', cat:'Numbers', content:'Preferred: MMM D, YYYY (Mar 3, 2023). Timestamps: MM/DD/YYYY.', rules:['Standard: MMM D, YYYY','Timestamp: MM/DD/YYYY','Leading zeros in timestamps only','Abbreviate months as 3 letters','Comma after year in full-date sentences'] },
+  { id:'time', title:'Time', cat:'Numbers', content:'24h format. Use UTC, not GMT or local timezones.', rules:['Use 24h format','Use UTC, never GMT/PST/HKT','Timestamp: HH:MM:SS','Sentence: Xh Xm Xs','No space between time and abbreviation: 24h'], doExamples:['The campaign starts at 00:00 UTC on Mar 1, 2023.'], dontExamples:['The campaign starts at 8:00 am HKT on Mar 1, 2023.'] },
+  { id:'inclusivity', title:'Inclusivity', cat:'Foundation', content:'Use inclusive, non-discriminatory language. Avoid ageist, ableist, and gendered language.', rules:['Use "Select" not "Click/Tap"','Use "Go to" not "See"','Use "they" as gender-neutral','Use "Country/Region" not just "Country"','Use "Block" not "Blacklist"','Use "Primary" not "Master"','Capitalize ethnicity/race names'], doExamples:['Existing account holders','Select Buy','Country/Region of residency'], dontExamples:['Old account holders','See the bottom and click Buy','Country'] },
+  { id:'localization', title:'Localization', cat:'Foundation', content:'Write for global audiences. Short, simple sentences. Avoid idioms and local references.', rules:['Short, simple sentences in present tense','Provide context \u2014 don\'t assume knowledge','Avoid negative constructions','Avoid phrasal verbs, idioms, slang','Avoid local humor and holiday references','Use UTC, metric system','Use tickers over symbols for clarity'] },
+  { id:'periods', title:'Periods', cat:'Punctuation', content:'End sentences with periods. Don\'t use in headers, CTAs, buttons, subject lines, hyperlinks.', rules:['Period: sentences, push, SMS, banners','No period: headers, subject lines, CTAs, hyperlinks, toggles, table headers, button labels','Cards with sentences: add period','Inline errors: always add period','Subheaders/body: add period','Tooltips/toasts 3+ words: add period','Periods inside quotation marks','Periods outside parentheses (unless standalone sentence)'] },
+  { id:'dashes', title:'Dashes and hyphens', cat:'Punctuation', content:'Em dash for sentence changes (with spaces). Hyphen for joining words and ranges.', rules:['Em dash: space before and after','Hyphen: no spaces for joining words','Hyphen with space: for number ranges','If room allows, use words instead of hyphens'] },
+  { id:'slash', title:'Slashes', cat:'Punctuation', content:'Slashes mean per, and, or. No spaces. For dates (MM/DD/YYYY) and trading pairs (BTC/USDT).', rules:['No spaces around slashes','Use for crypto pairs: BTC/USDT','Use for date format: MM/DD/YYYY','Only capitalize after slash if proper noun'], doExamples:['Sign up/log in to begin','BTC/USDT'], dontExamples:['Sign Up/Log In to begin'] },
+];
+
+const periodRules = {
+  yes: ['Cards with sentences','Inline error messages','Dialog box body','Description text','Subheaders/body','Tooltips/toasts 3+ words','Bulleted sentences'],
+  no: ['Headers','Email subject lines','CTAs/Buttons','Hyperlinks','Toggles','Table headers/footers','Menu items','Button labels','Confirmations (1\u20133 words)','Labels/meta text'],
+  depends: ['Checkboxes (period if comma)','Empty states (subheader only)','Equations (in sentence only)','Toasts/tooltips (3+ words)'],
+};
+
+const checkerRules = [
+  { id:'passive', name:'Passive voice', sev:'warning', cat:'Voice', re:/\b(is|are|was|were|be|been|being)\s+(being\s+)?([\w]+ed|[\w]+en)\b/gi, msg:'Consider active voice \u2014 easier to read and more conversational.', sug:'Rewrite so the subject performs the action.' },
+  { id:'no-contraction', name:'Missing contraction', sev:'info', cat:'Tone', re:/\b(do not|does not|is not|are not|was not|were not|will not|would not|could not|should not|have not|has not|it is|you are|we are|they are|there is|that is|who is|what is)\b/gi, msg:'Consider a contraction for a more conversational tone.', sug:'Use don\'t, isn\'t, you\'re, etc.' },
+  { id:'ellipsis', name:'Ellipsis', sev:'error', cat:'Punctuation', re:/\.{3}|\u2026/g, msg:'Don\'t use ellipses in product content.', sug:'Remove it. Use a period or nothing.' },
+  { id:'ampersand', name:'Ampersand', sev:'warning', cat:'Punctuation', re:/\s&\s/g, msg:'Don\'t use & in body text or headers unless it\'s a trademark.', sug:'Replace with "and".' },
+  { id:'exclamation', name:'Excessive exclamation', sev:'warning', cat:'Punctuation', re:/!{2,}/g, msg:'Use exclamation points sparingly.', sug:'Use one at most, only for congratulatory messages.' },
+  { id:'click-tap', name:'"Click" or "Tap"', sev:'error', cat:'Inclusivity', re:/\b(click|tap)\b/gi, msg:'Not inclusive. Use "Select" instead.', sug:'Replace with Select, Go to, Check, or Review.' },
+  { id:'see-usage', name:'"See" for navigation', sev:'warning', cat:'Inclusivity', re:/\bsee\s+(the|your|our|my|this|that)\b/gi, msg:'Not inclusive of screen reader users.', sug:'Use Go to, Select, Check, Review, or View.' },
+  { id:'he-she', name:'Gendered pronouns', sev:'warning', cat:'Inclusivity', re:/\b(he\/she|s\/he|his\/her|his or her|him or her)\b/gi, msg:'Use "they" as gender-neutral pronoun.', sug:'Replace with they/their/them.' },
+  { id:'blacklist', name:'Non-inclusive term', sev:'error', cat:'Inclusivity', re:/\b(blacklist|whitelist|master|slave)\b/gi, msg:'Use inclusive alternatives.', sug:'Use block/allow, primary/default, main.' },
+  { id:'ie-eg', name:'i.e. or e.g.', sev:'warning', cat:'Abbreviations', re:/\b(i\.e\.|e\.g\.)\b/gi, msg:'Not well-known abbreviations.', sug:'Spell out "that is" or "for example".' },
+  { id:'gmt', name:'GMT timezone', sev:'error', cat:'Formatting', re:/\bGMT\b/g, msg:'Use UTC, not GMT.', sug:'Replace GMT with UTC.' },
+  { id:'got-it', name:'"Got it" CTA', sev:'warning', cat:'CTA', re:/\bgot it\b/gi, msg:'Poses localization challenges.', sug:'Replace with "OK".' },
+  { id:'country', name:'"Country" without region', sev:'info', cat:'Inclusivity', re:/\bcountry\b(?!\s*(\/|or)\s*region)/gi, msg:'Consider "country or region" for inclusivity.', sug:'Use "country or region".' },
+  { id:'sorry', name:'Unnecessary apology', sev:'info', cat:'Tone', re:/\b(sorry|apologize|apologies|we('re| are) sorry)\b/gi, msg:'Avoid unnecessary apologies.', sug:'Focus on the solution instead.' },
+  { id:'please', name:'Unnecessary "please"', sev:'info', cat:'Tone', re:/\bplease\b/gi, msg:'Can sound overly formal.', sug:'Rewrite without "please" for a direct, friendly tone.' },
+  { id:'here-link', name:'"Here" as link text', sev:'warning', cat:'CTA', re:/\bhere\b/gi, msg:'Avoid "here" as link text.', sug:'Use a descriptive CTA like "Get the details".' },
+];
+
+const KNOWN_ACRONYMS = new Set(['BTC','ETH','USDT','USD','DOGE','NFT','API','FAQ','CTA','UTC','CEO','NBA','FBI','NASA','OKX','APY','DEX','BSC','USDC','SOL']);
+
+const SUGGESTED_TAGS = ['Empty state','Error message','Success','CTA','Banner','Push notification','Email','Tooltip','Dialog','Header','Onboarding','Marketing','Product','Settings','Trade','Wallet','Portfolio','Home','Modal','Toast'];
+
+const SCREEN_KEY = 'content-guide-screens';
+const SESSION_KEY = 'content-guide-sessions';
+function loadScreens(){ try{ return JSON.parse(localStorage.getItem(SCREEN_KEY)||'[]') }catch{ return [] } }
+function saveScreens(s){ localStorage.setItem(SCREEN_KEY, JSON.stringify(s)) }
+function loadSessions(){ try{ return JSON.parse(localStorage.getItem(SESSION_KEY)||'[]') }catch{ return [] } }
+function saveSessions(s){ localStorage.setItem(SESSION_KEY, JSON.stringify(s)) }
+
+// Run content analysis on extracted text
+function analyzeExtractedText(text) {
+  if (!text || !text.trim()) return { issues:[], score:null };
+  const issues = [];
+  for (const rule of checkerRules) {
+    const re = new RegExp(rule.re.source, rule.re.flags);
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      issues.push({ ...rule, matchText:m[0], index:m.index });
+    }
+  }
+  text.split(/[.!?]+/).filter(s=>s.trim()).forEach(s => {
+    const wc = s.trim().split(/\s+/).length;
+    if (wc > 25) issues.push({ id:'long', name:'Long sentence', sev:'info', cat:'Readability', msg:`${wc} words. Aim for under 20 for a 5th grade level.`, sug:'Break into shorter sentences.', matchText:s.trim().substring(0,60)+(s.trim().length>60?'...':''), index:text.indexOf(s.trim()) });
+  });
+  issues.sort((a,b)=>a.index-b.index);
+  const ec=issues.filter(i=>i.sev==='error').length, wc2=issues.filter(i=>i.sev==='warning').length, ic=issues.filter(i=>i.sev==='info').length;
+  const score = Math.max(0, 100 - ec*10 - wc2*5 - ic*2);
+  return { issues, score };
+}
+
+// OCR a single image and return extracted text
+async function ocrImage(dataUrl) {
+  try {
+    const result = await Tesseract.recognize(dataUrl, 'eng', { logger: ()=>{} });
+    return result.data.text || '';
+  } catch(e) {
+    console.error('OCR failed:', e);
+    return '';
+  }
+}
+
+const sevConfig = {
+  error: { icon:'alertCircle', color:'text-red-600', bg:'bg-red-50', border:'border-red-200' },
+  warning: { icon:'alertTriangle', color:'text-amber-600', bg:'bg-amber-50', border:'border-amber-200' },
+  info: { icon:'info', color:'text-blue-600', bg:'bg-blue-50', border:'border-blue-200' },
+};
+
+// ── ICONS (inline SVGs) ──────────────────────────────
+function Icon({name, size=20, className=''}){
+  const s = {width:size,height:size};
+  const props = {xmlns:'http://www.w3.org/2000/svg', width:size, height:size, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:2, strokeLinecap:'round', strokeLinejoin:'round', className};
+  const icons = {
+    dashboard: <svg {...props}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+    book: <svg {...props}><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>,
+    check: <svg {...props}><polyline points="20 6 9 17 4 12"/></svg>,
+    palette: <svg {...props}><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>,
+    image: <svg {...props}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>,
+    search: <svg {...props}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+    chevronDown: <svg {...props}><path d="m6 9 6 6 6-6"/></svg>,
+    chevronRight: <svg {...props}><path d="m9 18 6-6-6-6"/></svg>,
+    chevronLeft: <svg {...props}><path d="m15 18-6-6 6-6"/></svg>,
+    x: <svg {...props}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+    alertCircle: <svg {...props}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+    alertTriangle: <svg {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>,
+    info: <svg {...props}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>,
+    sparkles: <svg {...props}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>,
+    target: <svg {...props}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+    arrowRight: <svg {...props}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>,
+    upload: <svg {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+    trash: <svg {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>,
+    grid: <svg {...props}><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>,
+    list: <svg {...props}><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>,
+    zoom: <svg {...props}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg>,
+    tag: <svg {...props}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>,
+    checkCircle: <svg {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  };
+  return icons[name] || null;
+}
+
+// ── SIDEBAR ──────────────────────────────────────────
+const navItems = [
+  { id:'dashboard', icon:'dashboard', label:'Dashboard' },
+  { id:'guide', icon:'book', label:'Living guideline' },
+  { id:'checker', icon:'checkCircle', label:'Content checker' },
+  { id:'tone', icon:'palette', label:'Tone framework' },
+  { id:'screens', icon:'image', label:'Screen library' },
+];
+
+function Sidebar({ page, setPage, open, setOpen }) {
+  return (
+    <aside className={`fixed top-0 left-0 h-screen bg-surface-900 text-white flex flex-col transition-all duration-300 z-30 ${open?'w-64':'w-16'}`}>
+      <div className="flex items-center gap-3 px-4 h-16 border-b border-surface-700 shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-sm font-bold shrink-0">C</div>
+        {open && <span className="text-sm font-semibold tracking-tight truncate">Content guide</span>}
+      </div>
+      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+        {navItems.map(n => (
+          <button key={n.id} onClick={()=>setPage(n.id)} title={n.label}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left ${page===n.id?'bg-brand-700 text-white':'text-surface-400 hover:text-white hover:bg-surface-700'}`}>
+            <Icon name={n.icon} size={20} className="shrink-0"/>
+            {open && <span className="truncate">{n.label}</span>}
+          </button>
+        ))}
+      </nav>
+      <button onClick={()=>setOpen(!open)} className="flex items-center justify-center h-12 border-t border-surface-700 text-surface-400 hover:text-white transition-colors shrink-0">
+        <Icon name={open?'chevronLeft':'chevronRight'} size={18}/>
+      </button>
+    </aside>
+  );
+}
+
+// ── DASHBOARD ────────────────────────────────────────
+function Dashboard({ setPage }) {
+  const [sessions, setSessions] = useState(loadSessions);
+  const [screens, setScreens] = useState(loadScreens);
+  const [expandedSession, setExpandedSession] = useState(null);
+  const [reviewScreen, setReviewScreen] = useState(null);
+
+  // Refresh data when component mounts (in case screens page added new data)
+  useEffect(() => { setSessions(loadSessions()); setScreens(loadScreens()); }, []);
+
+  const getSessionScreens = (session) => session.screenIds.map(sid => screens.find(s=>s.id===sid)).filter(Boolean);
+
+  const avgScore = (sessionScreens) => {
+    const scored = sessionScreens.filter(s=>s.analysisScore!==null&&s.analysisScore!==undefined);
+    if (!scored.length) return null;
+    return Math.round(scored.reduce((sum,s)=>sum+s.analysisScore,0)/scored.length);
+  };
+
+  const ScoreBadge = ({score, size='sm'}) => {
+    if (score===null||score===undefined) return null;
+    const color = score>=80?'bg-emerald-100 text-emerald-700':score>=60?'bg-amber-100 text-amber-700':'bg-red-100 text-red-700';
+    return <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full font-medium ${color} ${size==='sm'?'text-[10px]':'text-xs'}`}>{score}</span>;
+  };
+
+  const links = [
+    { id:'guide', icon:'book', title:'Living guideline', desc:'Browse the full style guide with searchable rules and examples.', color:'bg-brand-100 text-brand-700' },
+    { id:'checker', icon:'checkCircle', title:'Content checker', desc:'Paste content and instantly check it against writing standards.', color:'bg-emerald-100 text-emerald-700' },
+    { id:'tone', icon:'palette', title:'Tone framework', desc:'See which tones to use for different situations.', color:'bg-purple-100 text-purple-700' },
+    { id:'screens', icon:'image', title:'Screen library', desc:'Upload and browse content screenshots as examples.', color:'bg-amber-100 text-amber-700' },
+  ];
+  return (
+    <div className="space-y-10">
+      <div>
+        <h1 className="text-3xl font-bold">Welcome to the OKX content guide</h1>
+        <p className="mt-2 text-surface-500 text-lg">Use this guide to learn how we write across OKX. All standards are based on American English.</p>
+      </div>
+
+      {/* Recent reviews */}
+      {sessions.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Recent reviews</h2>
+            <button onClick={()=>setPage('screens')} className="text-sm text-brand-600 hover:text-brand-800 font-medium">View all screens &rarr;</button>
+          </div>
+          <div className="space-y-3">
+            {sessions.slice(0,10).map(session => {
+              const sessionScreens = getSessionScreens(session);
+              const avg = avgScore(sessionScreens);
+              const totalIssues = sessionScreens.reduce((sum,s)=>sum+(s.analysis?s.analysis.length:0),0);
+              const isExpanded = expandedSession === session.id;
+              const anyProcessing = sessionScreens.some(s=>s.ocrStatus==='processing');
+              return (
+                <div key={session.id} className="bg-white rounded-xl border border-surface-200 shadow-sm overflow-hidden">
+                  <button onClick={()=>setExpandedSession(isExpanded?null:session.id)} className="w-full flex items-center gap-4 p-4 text-left hover:bg-surface-50 transition-colors">
+                    <div className="flex -space-x-2 shrink-0">
+                      {sessionScreens.slice(0,4).map(s=>(
+                        <div key={s.id} className="w-10 h-10 rounded-lg border-2 border-white overflow-hidden bg-surface-100">
+                          <img src={s.dataUrl} alt={s.name} className="w-full h-full object-cover"/>
+                        </div>
+                      ))}
+                      {sessionScreens.length>4 && <div className="w-10 h-10 rounded-lg border-2 border-white bg-surface-100 flex items-center justify-center text-xs text-surface-500 font-medium">+{sessionScreens.length-4}</div>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold truncate">{session.name}</p>
+                        {anyProcessing && <span className="text-[10px] text-brand-600 font-medium">Processing...</span>}
+                      </div>
+                      <p className="text-xs text-surface-400 mt-0.5">
+                        {session.fileCount} file{session.fileCount!==1?'s':''} &middot; {new Date(session.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {totalIssues>0 && <span className="text-xs text-surface-500">{totalIssues} issue{totalIssues!==1?'s':''}</span>}
+                      {avg!==null && <ScoreBadge score={avg} size="md"/>}
+                      <Icon name={isExpanded?'chevronDown':'chevronRight'} size={16} className="text-surface-400"/>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-surface-100 p-4 bg-surface-50">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {sessionScreens.map(s => (
+                          <div key={s.id} className="bg-white rounded-lg border border-surface-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={()=>setReviewScreen(s)}>
+                            <div className="relative aspect-[4/3] bg-surface-100">
+                              <img src={s.dataUrl} alt={s.name} className="w-full h-full object-cover"/>
+                              {s.analysisScore!==null&&s.analysisScore!==undefined && <div className="absolute top-1.5 left-1.5"><ScoreBadge score={s.analysisScore}/></div>}
+                              {s.ocrStatus==='processing' && <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-brand-600 text-white text-[10px] font-medium flex items-center gap-1"><div className="w-2.5 h-2.5 border border-white border-t-transparent rounded-full animate-spin"/>Analyzing</div>}
+                            </div>
+                            <div className="p-2">
+                              <p className="text-[11px] font-medium text-surface-700 truncate">{s.name}</p>
+                              <p className="text-[10px] text-surface-400 mt-0.5">{s.analysis ? `${s.analysis.length} issue${s.analysis.length!==1?'s':''}` : 'Pending'}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center"><Icon name="sparkles" size={20} className="text-brand-700"/></div>
+            <h2 className="font-semibold">Our voice is BOLD</h2>
+          </div>
+          <div className="space-y-3">
+            {voiceAndTone.voice.traits.map(t=>(
+              <div key={t.letter} className="flex items-start gap-3">
+                <span className="w-7 h-7 rounded-md bg-brand-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{t.letter}</span>
+                <div><span className="font-medium text-sm">{t.word}</span><p className="text-xs text-surface-500 mt-0.5">{t.desc}</p></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center"><Icon name="target" size={20} className="text-purple-700"/></div>
+            <h2 className="font-semibold">Our tone is FOCUSED</h2>
+          </div>
+          <div className="space-y-3">
+            {voiceAndTone.tone.traits.map(t=>(
+              <div key={t.letter} className="flex items-start gap-3">
+                <span className="w-7 h-7 rounded-md bg-purple-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{t.letter}</span>
+                <div><span className="font-medium text-sm">{t.word}</span><p className="text-xs text-surface-500 mt-0.5">{t.desc}</p></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Content principles</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {contentPrinciples.map(p=>(
+            <div key={p.title} className="bg-white rounded-xl border border-surface-200 shadow-sm p-5">
+              <h3 className="font-semibold mb-3">{p.title}</h3>
+              <ul className="space-y-2">{p.rules.map((r,i)=>(<li key={i} className="flex items-start gap-2 text-sm text-surface-600"><span className="text-brand-600 mt-1 shrink-0">{'\u2022'}</span>{r}</li>))}</ul>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Quick access</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {links.map(l=>(
+            <button key={l.id} onClick={()=>setPage(l.id)} className="bg-white rounded-xl border border-surface-200 shadow-sm p-5 hover:shadow-md transition-shadow group text-left w-full">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-4">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${l.color}`}><Icon name={l.icon} size={20}/></div>
+                  <div><h3 className="font-semibold group-hover:text-brand-700 transition-colors">{l.title}</h3><p className="text-sm text-surface-500 mt-1">{l.desc}</p></div>
+                </div>
+                <Icon name="arrowRight" size={18} className="text-surface-300 group-hover:text-brand-600 transition-colors mt-1 shrink-0"/>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Review screen modal */}
+      {reviewScreen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={()=>setReviewScreen(null)}>
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-surface-100">
+              <div className="flex items-center gap-3 min-w-0">
+                <h3 className="font-semibold truncate">{reviewScreen.name}</h3>
+                <ScoreBadge score={reviewScreen.analysisScore} size="md"/>
+              </div>
+              <button onClick={()=>setReviewScreen(null)} className="text-surface-400 hover:text-surface-600 shrink-0"><Icon name="x" size={20}/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <div className="bg-surface-100 rounded-xl overflow-hidden"><img src={reviewScreen.dataUrl} alt={reviewScreen.name} className="w-full h-auto"/></div>
+                  {reviewScreen.extractedText && (
+                    <div className="mt-4">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-surface-400 block mb-1.5">Extracted text</label>
+                      <div className="p-3 rounded-lg bg-surface-50 border border-surface-200 text-sm font-mono leading-relaxed text-surface-600 whitespace-pre-wrap max-h-[200px] overflow-y-auto">{reviewScreen.extractedText}</div>
+                    </div>
+                  )}
+                  {!reviewScreen.extractedText && reviewScreen.ocrStatus==='done' && (
+                    <p className="mt-3 text-sm text-surface-400 text-center">No text could be extracted from this image.</p>
+                  )}
+                  <p className="text-xs text-surface-400 mt-3">Analyzed: {reviewScreen.analyzedAt ? new Date(reviewScreen.analyzedAt).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : 'Pending'}</p>
+                </div>
+                <div className="space-y-4">
+                  {reviewScreen.analysis && reviewScreen.analysis.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-surface-400">Content analysis ({reviewScreen.analysis.length} issue{reviewScreen.analysis.length!==1?'s':''})</label>
+                        <div className="flex items-center gap-3 text-[10px]">
+                          <span className="text-red-600">{reviewScreen.analysis.filter(i=>i.sev==='error').length} errors</span>
+                          <span className="text-amber-600">{reviewScreen.analysis.filter(i=>i.sev==='warning').length} warnings</span>
+                          <span className="text-blue-600">{reviewScreen.analysis.filter(i=>i.sev==='info').length} suggestions</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                        {reviewScreen.analysis.map((issue,idx)=>{
+                          const c = sevConfig[issue.sev];
+                          return (
+                            <div key={idx} className={`rounded-lg border p-2.5 ${c.bg} ${c.border}`}>
+                              <div className="flex items-start gap-2">
+                                <Icon name={c.icon} size={14} className={`${c.color} mt-0.5 shrink-0`}/>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap"><span className="text-xs font-medium">{issue.name}</span><span className="text-[10px] text-surface-400">{issue.cat}</span></div>
+                                  <p className="text-xs text-surface-600 mt-0.5">{issue.msg}</p>
+                                  {issue.matchText && <p className="text-[10px] font-mono text-surface-500 mt-1 bg-white/60 rounded px-1.5 py-0.5 inline-block">"{issue.matchText}"</p>}
+                                  {issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : reviewScreen.analysis && reviewScreen.analysis.length===0 && reviewScreen.extractedText ? (
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                      <Icon name="checkCircle" size={20} className="text-emerald-600"/>
+                      <div><p className="text-sm font-medium text-emerald-800">No issues found</p><p className="text-xs text-emerald-600">The content in this screen follows OKX guidelines.</p></div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-surface-400">
+                      <p className="text-sm">{reviewScreen.ocrStatus==='processing' ? 'Analysis in progress...' : 'No analysis available yet.'}</p>
+                    </div>
+                  )}
+                  <button onClick={()=>{setReviewScreen(null);setPage('screens');}} className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors">
+                    Open in screen library &rarr;
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── STYLE GUIDE ──────────────────────────────────────
+function StyleGuide() {
+  const [search, setSearch] = useState('');
+  const [cat, setCat] = useState('All');
+  const [expanded, setExpanded] = useState(new Set());
+  const cats = ['All', ...new Set(guidelineSections.map(s=>s.cat))];
+  const catColors = { Foundation:'bg-brand-100 text-brand-800', Grammar:'bg-emerald-100 text-emerald-800', Punctuation:'bg-amber-100 text-amber-800', Formatting:'bg-purple-100 text-purple-800', Numbers:'bg-red-100 text-red-800' };
+  const filtered = guidelineSections.filter(s => {
+    const mc = cat==='All' || s.cat===cat;
+    const ms = !search || s.title.toLowerCase().includes(search.toLowerCase()) || s.content.toLowerCase().includes(search.toLowerCase()) || s.rules.some(r=>r.toLowerCase().includes(search.toLowerCase()));
+    return mc && ms;
+  });
+  const toggle = id => setExpanded(p => { const n=new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
+  const expandAll = () => expanded.size===filtered.length ? setExpanded(new Set()) : setExpanded(new Set(filtered.map(s=>s.id)));
+
+  return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold">Living guideline</h1><p className="text-surface-500 mt-1">Searchable OKX content standards. {guidelineSections.length} rules across {cats.length-1} categories.</p></div>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1"><Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"/><input type="text" placeholder="Search rules, examples, guidelines..." value={search} onChange={e=>setSearch(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-surface-200 bg-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500 pl-10 text-sm"/></div>
+        <button onClick={expandAll} className="px-5 py-2.5 bg-white text-surface-700 rounded-lg font-medium text-sm border border-surface-200 hover:bg-surface-50 whitespace-nowrap">{expanded.size===filtered.length?'Collapse all':'Expand all'}</button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {cats.map(c=>(
+          <button key={c} onClick={()=>setCat(c)} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${cat===c?'bg-brand-700 text-white':'bg-surface-100 text-surface-600 hover:bg-surface-200'}`}>
+            {c}{c!=='All' && <span className="ml-1.5 text-xs opacity-70">{guidelineSections.filter(s=>s.cat===c).length}</span>}
+          </button>
+        ))}
+      </div>
+      <p className="text-sm text-surface-400">Showing {filtered.length} of {guidelineSections.length}</p>
+      <div className="space-y-3">
+        {filtered.map(s=>{
+          const isExp = expanded.has(s.id);
+          return (
+            <div key={s.id} className="bg-white rounded-xl border border-surface-200 shadow-sm overflow-hidden">
+              <button onClick={()=>toggle(s.id)} className="w-full flex items-center gap-3 p-4 text-left hover:bg-surface-50 transition-colors">
+                <Icon name={isExp?'chevronDown':'chevronRight'} size={18} className="text-surface-400 shrink-0"/>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap"><h3 className="font-semibold">{s.title}</h3><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${catColors[s.cat]||'bg-surface-100 text-surface-700'}`}>{s.cat}</span></div>
+                  {!isExp && <p className="text-sm text-surface-500 mt-1 truncate">{s.content}</p>}
+                </div>
+              </button>
+              {isExp && (
+                <div className="px-4 pb-4 border-t border-surface-100">
+                  <p className="text-sm text-surface-600 mt-4 mb-4">{s.content}</p>
+                  <div className="mb-4"><h4 className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-2">Rules</h4>
+                    <ul className="space-y-1.5">{s.rules.map((r,i)=>(<li key={i} className="flex items-start gap-2 text-sm text-surface-700"><span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-1.5 shrink-0"/>{r}</li>))}</ul>
+                  </div>
+                  {(s.doExamples||s.dontExamples) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {s.doExamples && <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3"><div className="flex items-center gap-1.5 mb-2"><Icon name="check" size={14} className="text-emerald-600"/><span className="text-xs font-semibold text-emerald-700 uppercase">Do</span></div><ul className="space-y-1.5">{s.doExamples.map((e,i)=>(<li key={i} className="text-sm text-emerald-800">{e}</li>))}</ul></div>}
+                      {s.dontExamples && <div className="rounded-lg bg-red-50 border border-red-200 p-3"><div className="flex items-center gap-1.5 mb-2"><Icon name="x" size={14} className="text-red-600"/><span className="text-xs font-semibold text-red-700 uppercase">Don't</span></div><ul className="space-y-1.5">{s.dontExamples.map((e,i)=>(<li key={i} className="text-sm text-red-800">{e}</li>))}</ul></div>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-6">
+        <h2 className="text-lg font-semibold mb-4">Period quick reference</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div><h3 className="text-sm font-semibold text-emerald-700 mb-2">Needs period</h3><ul className="space-y-1">{periodRules.yes.map((r,i)=>(<li key={i} className="text-sm text-surface-600">{r}</li>))}</ul></div>
+          <div><h3 className="text-sm font-semibold text-red-700 mb-2">No period</h3><ul className="space-y-1">{periodRules.no.map((r,i)=>(<li key={i} className="text-sm text-surface-600">{r}</li>))}</ul></div>
+          <div><h3 className="text-sm font-semibold text-amber-700 mb-2">It depends</h3><ul className="space-y-1">{periodRules.depends.map((r,i)=>(<li key={i} className="text-sm text-surface-600">{r}</li>))}</ul></div>
+        </div>
+      </div>
+      {filtered.length===0 && <div className="text-center py-12 text-surface-400"><p className="text-lg font-medium">No guidelines match your search</p></div>}
+    </div>
+  );
+}
+
+// ── CONTENT CHECKER ──────────────────────────────────
+function runChecks(text) {
+  if (!text.trim()) return [];
+  const issues = [];
+  for (const rule of checkerRules) {
+    const re = new RegExp(rule.re.source, rule.re.flags);
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      issues.push({ ...rule, matchText:m[0], index:m.index });
+    }
+  }
+  // Long sentences
+  text.split(/[.!?]+/).filter(s=>s.trim()).forEach(s => {
+    const wc = s.trim().split(/\s+/).length;
+    if (wc > 25) issues.push({ id:'long', name:'Long sentence', sev:'info', cat:'Readability', msg:`${wc} words. Aim for under 20 for a 5th grade level.`, sug:'Break into shorter sentences.', matchText:s.trim().substring(0,60)+(s.trim().length>60?'...':''), index:text.indexOf(s.trim()) });
+  });
+  return issues.sort((a,b)=>a.index-b.index);
+}
+
+const samples = [
+  { label:'Error message', text:'We couldn\'t process your request. We\'re sorry for the inconvenience. Please click the button below to try again...', situation:'Error messages' },
+  { label:'Marketing banner', text:'OKX is launching a new feature that will help you make money fast! Click here to see the details & get started. This offer is available in your country only.', situation:'Marketing content' },
+  { label:'Empty state', text:'Nothing to display.', situation:'Empty states' },
+  { label:'Push notification', text:'You\'re missing out big time! The market will move and will you be ready? Finish identity verification to get ready. Click the link to see your account status.', situation:'Push notifications' },
+  { label:'Good example', text:'You\'ve made your first deposit. Go to Portfolio to see your balance.', situation:'Success messages' },
+];
+
+// Situation-specific content checks that run on top of the general checker rules
+function runSituationChecks(text, situation) {
+  if (!text.trim() || !situation) return [];
+  const issues = [];
+  const len = text.length;
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+
+  if (situation === 'Push notifications') {
+    // Split on first period/newline to guess title vs body
+    const parts = text.split(/[.\n]/).filter(s=>s.trim());
+    const title = parts[0] || '';
+    const body = parts.slice(1).join('. ').trim();
+    if (title.length > 50) issues.push({ id:'push-title', name:'Push title too long', sev:'warning', cat:'Character limit', msg:`Title is ${title.length} chars. Max recommended is 50.`, sug:'Shorten the title to under 50 characters.', matchText:title.substring(0,55)+'...' });
+    if (body && body.length > 150) issues.push({ id:'push-body', name:'Push body too long', sev:'warning', cat:'Character limit', msg:`Body is ${body.length} chars. Max recommended is 150.`, sug:'Keep the body under 150 characters.', matchText:body.substring(0,55)+'...' });
+    if (/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(text)) issues.push({ id:'push-emoji', name:'Emoji in push notification', sev:'warning', cat:'Tone', msg:'Avoid emoji in push notifications unless peer-reviewed.', sug:'Remove the emoji or get peer review.' });
+  }
+
+  if (situation === 'Banners') {
+    if (len > 103) issues.push({ id:'banner-len', name:'Banner too long', sev:'warning', cat:'Character limit', msg:`Banner is ${len} chars. Max recommended is 103.`, sug:'Shorten to 103 characters or fewer.' });
+  }
+
+  if (situation === 'Text messages (SMS)') {
+    if (len > 160) issues.push({ id:'sms-len', name:'SMS too long', sev:'warning', cat:'Character limit', msg:`Message is ${len} chars. Keep under 160.`, sug:'Shorten to 160 characters or fewer.' });
+    if (/\bSMS\b/.test(text)) issues.push({ id:'sms-term', name:'"SMS" used', sev:'info', cat:'Terminology', msg:'Write "text message" not "SMS" \u2014 it\'s too technical.', sug:'Replace "SMS" with "text message".' });
+  }
+
+  if (situation === 'Emails') {
+    const lines = text.split('\n').filter(s=>s.trim());
+    if (lines[0] && lines[0].length > 50) issues.push({ id:'email-subject', name:'Subject line may be too long', sev:'info', cat:'Character limit', msg:`First line is ${lines[0].length} chars. Subject lines should be ~50 chars (5\u20137 words).`, sug:'Shorten to around 50 characters.' });
+  }
+
+  if (situation === 'Empty states') {
+    if (wordCount < 5 && !/\b(start|begin|try|add|create|explore|get started|learn)\b/i.test(text)) issues.push({ id:'empty-no-action', name:'No actionable guidance', sev:'warning', cat:'Tone', msg:'Empty states should provide a reason AND a solution. Guide the user on what to do next.', sug:'Add a call to action or helpful next step.' });
+  }
+
+  if (situation === 'Error messages') {
+    if (!/\b(refresh|retry|try again|check|contact|update|go to)\b/i.test(text)) issues.push({ id:'error-no-action', name:'No recovery action', sev:'warning', cat:'Tone', msg:'Error messages should tell users what they can do. Answer: What can the user do?', sug:'Add a recovery action like "Refresh the page" or "Try again".' });
+    if (/\b(we failed|our fault|we couldn\'t|we were unable)\b/i.test(text)) issues.push({ id:'error-blame', name:'Blaming OKX', sev:'warning', cat:'Tone', msg:'Don\'t blame OKX. Focus on the situation and solution.', sug:'Rewrite to focus on the outcome, not who caused it.' });
+  }
+
+  if (situation === 'Success messages') {
+    if (text.split('!').length - 1 > 1) issues.push({ id:'success-excl', name:'Too many exclamation points', sev:'info', cat:'Tone', msg:'Keep success messages concise. One exclamation is enough.', sug:'Use at most one exclamation point.' });
+    if (wordCount > 20) issues.push({ id:'success-long', name:'Success message too long', sev:'info', cat:'Tone', msg:'Success confirmations should be short. Put extra info in a subheader.', sug:'Shorten to under 20 words.' });
+  }
+
+  if (situation === 'Headers & subheaders') {
+    if (/[.!]$/.test(text.trim())) issues.push({ id:'header-period', name:'Period in header', sev:'warning', cat:'Punctuation', msg:'Headers should not end with a period or exclamation point.', sug:'Remove the trailing punctuation.' });
+    if (text.trim().split(' ').every(w => w[0] && w[0] === w[0].toUpperCase() && w.length > 1 && !/^(BTC|ETH|USDT|OKX|API|CTA|USD|NFT|FAQ|UTC)$/.test(w))) {
+      if (wordCount > 2) issues.push({ id:'header-titlecase', name:'Possible title case', sev:'info', cat:'Formatting', msg:'Use sentence case for headers, not title case.', sug:'Only capitalize the first word and proper nouns.' });
+    }
+  }
+
+  if (situation === 'Marketing content') {
+    if (/\bOKX (is|has|was|will)\b/.test(text)) issues.push({ id:'mkt-third-person', name:'Third-person brand reference', sev:'warning', cat:'Tone', msg:'Use first-person (we/our) in marketing, not "OKX is..."', sug:'Replace "OKX is" with "We\'re" or similar.' });
+    if (/\b(make money|get rich|100%|guaranteed)\b/i.test(text)) issues.push({ id:'mkt-cliche', name:'Overselling or cliche', sev:'warning', cat:'Tone', msg:'Avoid cliches and overselling. Be catchy without over-promising.', sug:'Focus on specific, honest benefits.' });
+  }
+
+  if (situation === 'Tooltips') {
+    if (wordCount > 30) issues.push({ id:'tooltip-long', name:'Tooltip too long', sev:'info', cat:'Tone', msg:'Tooltips should be brief and helpful. This is quite long.', sug:'Shorten to a concise explanation.' });
+  }
+
+  if (situation === 'Enthusiastic expressions') {
+    if (/\b(congrats|awesome|amazing|you did it|great job|well done|way to go)\b/i.test(text)) issues.push({ id:'enthus-jargon', name:'Overly enthusiastic', sev:'info', cat:'Tone', msg:'We\'re a regulated financial business. Limit enthusiastic jargon.', sug:'Use a more measured tone like "Deposit complete" instead.' });
+  }
+
+  if (situation === 'UI references') {
+    if (/[""\u201C\u201D]/.test(text)) issues.push({ id:'ui-quotes', name:'Quoted UI element', sev:'warning', cat:'Formatting', msg:'Don\'t use quotation marks around UI elements.', sug:'Remove quotes and match on-screen capitalization.' });
+    if (/\b(button|tab|menu|dropdown|toggle|checkbox)\b/i.test(text)) issues.push({ id:'ui-names', name:'UI element name used', sev:'info', cat:'Formatting', msg:'Avoid naming UI elements (button, tab, menu). Just refer to the label.', sug:'Say "Select Trade" not "Select the Trade button".' });
+    if (/\b(top left|top right|bottom left|bottom right|upper|lower|left side|right side)\b/i.test(text)) issues.push({ id:'ui-direction', name:'Directional language', sev:'info', cat:'Formatting', msg:'Avoid directional language like "top left" or "bottom menu".', sug:'Reference the element by its label instead.' });
+  }
+
+  return issues;
+}
+
+function ContentChecker() {
+  const [text, setText] = useState('');
+  const [selectedSituation, setSelectedSituation] = useState(null);
+  const situation = selectedSituation ? toneFramework.find(t=>t.situation===selectedSituation) : null;
+
+  const generalIssues = useMemo(()=>runChecks(text),[text]);
+  const situationIssues = useMemo(()=>runSituationChecks(text, selectedSituation),[text, selectedSituation]);
+  const allIssues = useMemo(()=>[...situationIssues, ...generalIssues].sort((a,b)=>(a.index||0)-(b.index||0)),[generalIssues, situationIssues]);
+
+  const ec=allIssues.filter(i=>i.sev==='error').length, wc=allIssues.filter(i=>i.sev==='warning').length, ic=allIssues.filter(i=>i.sev==='info').length;
+  const score = text.trim() ? Math.max(0, 100 - ec*10 - wc*5 - ic*2) : null;
+  const scoreColor = score===null?'text-surface-400':score>=80?'text-emerald-600':score>=60?'text-amber-600':'text-red-600';
+  const ringColor = score===null?'stroke-surface-200':score>=80?'stroke-emerald-500':score>=60?'stroke-amber-500':'stroke-red-500';
+  const charCount = text.length;
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+
+  return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold">Content checker</h1><p className="text-surface-500 mt-1">Select a message type, then paste your content to check it against OKX tone and style guidelines.</p></div>
+
+      {/* Situation selector */}
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-wider text-surface-400 block mb-2">What are you writing?</label>
+        <div className="flex flex-wrap gap-2">
+          {toneFramework.map(t=>(
+            <button key={t.situation} onClick={()=>setSelectedSituation(selectedSituation===t.situation?null:t.situation)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${selectedSituation===t.situation?'bg-brand-700 text-white shadow-sm':'bg-surface-100 text-surface-600 hover:bg-surface-200'}`}>
+              {t.situation}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Active situation banner */}
+      {situation && (
+        <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <h3 className="font-semibold text-surface-900">{situation.situation}</h3>
+                {situation.tones.map(t=>(<span key={t} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${toneColors[t]||'bg-surface-100 text-surface-700 border-surface-200'}`}>{t}</span>))}
+              </div>
+              <p className="text-sm text-surface-500">{situation.desc}</p>
+            </div>
+            <button onClick={()=>setSelectedSituation(null)} className="text-surface-300 hover:text-surface-500 shrink-0 mt-1"><Icon name="x" size={16}/></button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Input area */}
+        <div className="lg:col-span-2 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-surface-700">Your content</label>
+            <span className="text-xs text-surface-400">{charCount} chars / {wordCount} words</span>
+          </div>
+          <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={situation ? `Paste your ${situation.situation.toLowerCase()} content here...` : 'Select a message type above, then paste your content...'} className="w-full px-4 py-3 rounded-lg border border-surface-200 bg-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500 min-h-[200px] resize-y font-mono text-sm leading-relaxed"/>
+          <div className="flex flex-wrap gap-2">
+            <span className="text-xs text-surface-400 py-1">Try a sample:</span>
+            {samples.map(s=>(<button key={s.label} onClick={()=>{setText(s.text);setSelectedSituation(s.situation);}} className="px-2.5 py-1 rounded-md text-xs bg-surface-100 text-surface-600 hover:bg-surface-200">{s.label}</button>))}
+          </div>
+
+          {/* Issues list */}
+          {allIssues.length > 0 && (
+            <div className="space-y-2 mt-4">
+              <h3 className="text-sm font-semibold text-surface-700">Issues found ({allIssues.length})</h3>
+              {situationIssues.length > 0 && (
+                <p className="text-xs text-surface-400">{situationIssues.length} situation-specific {'\u00B7'} {generalIssues.length} general style</p>
+              )}
+              {allIssues.map((issue,idx)=>{
+                const c = sevConfig[issue.sev];
+                return (
+                  <div key={idx} className={`rounded-lg border p-3 ${c.bg} ${c.border}`}>
+                    <div className="flex items-start gap-2.5">
+                      <Icon name={c.icon} size={16} className={`${c.color} mt-0.5 shrink-0`}/>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium">{issue.name}</span><span className="text-xs text-surface-400">{issue.cat}</span></div>
+                        <p className="text-sm text-surface-600 mt-0.5">{issue.msg}</p>
+                        {issue.matchText && <p className="text-xs font-mono text-surface-500 mt-1 bg-white/60 rounded px-2 py-1 inline-block">"{issue.matchText}"</p>}
+                        {issue.sug && <p className="text-xs text-surface-500 mt-1"><span className="font-medium">Suggestion:</span> {issue.sug}</p>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {text.trim() && allIssues.length===0 && (
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+              <Icon name="checkCircle" size={20} className="text-emerald-600"/>
+              <div><p className="text-sm font-medium text-emerald-800">Looking good!</p><p className="text-xs text-emerald-600">No style guide issues detected{situation ? ` for ${situation.situation.toLowerCase()}` : ''}.</p></div>
+            </div>
+          )}
+        </div>
+
+        {/* Right sidebar */}
+        <div className="space-y-4">
+          {/* Score */}
+          <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-6 text-center">
+            <h3 className="text-sm font-semibold text-surface-500 mb-4">Content score</h3>
+            <div className="relative w-32 h-32 mx-auto mb-4">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" fill="none" strokeWidth="8" className="stroke-surface-100"/><circle cx="60" cy="60" r="52" fill="none" strokeWidth="8" strokeLinecap="round" className={`${ringColor} transition-all duration-500`} strokeDasharray={`${((score||0)/100)*327} 327`}/></svg>
+              <div className="absolute inset-0 flex items-center justify-center"><span className={`text-3xl font-bold ${scoreColor}`}>{score===null?'--':score}</span></div>
+            </div>
+            {score!==null && <p className="text-sm text-surface-500">{score>=80?'Great work!':score>=60?'Good start. A few improvements needed.':'Needs revision.'}</p>}
+          </div>
+
+          {/* Summary */}
+          <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-surface-700">Summary</h3>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Icon name="alertCircle" size={14} className="text-red-500"/><span className="text-sm text-surface-600">Errors</span></div><span className="text-sm font-semibold">{ec}</span></div>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Icon name="alertTriangle" size={14} className="text-amber-500"/><span className="text-sm text-surface-600">Warnings</span></div><span className="text-sm font-semibold">{wc}</span></div>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Icon name="info" size={14} className="text-blue-500"/><span className="text-sm text-surface-600">Suggestions</span></div><span className="text-sm font-semibold">{ic}</span></div>
+          </div>
+
+          {/* Situation guidelines */}
+          {situation ? (
+            <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-surface-700 mb-1">Tone for {situation.situation.toLowerCase()}</h3>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {situation.tones.map(t=>(<span key={t} className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${toneColors[t]||'bg-surface-100 text-surface-700 border-surface-200'}`}>{t}</span>))}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-1.5">Guidelines</h4>
+                <ul className="space-y-1.5">{situation.guidelines.map((g,i)=>(<li key={i} className="flex items-start gap-2 text-xs text-surface-600"><span className="text-brand-500 mt-0.5 shrink-0">{'\u2022'}</span>{g}</li>))}</ul>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5">
+                  <div className="flex items-center gap-1 mb-1"><Icon name="check" size={12} className="text-emerald-600"/><span className="text-[10px] font-semibold text-emerald-700 uppercase">Do</span></div>
+                  <p className="text-xs text-emerald-800">{situation.doEx}</p>
+                </div>
+                <div className="rounded-lg bg-red-50 border border-red-200 p-2.5">
+                  <div className="flex items-center gap-1 mb-1"><Icon name="x" size={12} className="text-red-600"/><span className="text-[10px] font-semibold text-red-700 uppercase">Don't</span></div>
+                  <p className="text-xs text-red-800">{situation.dontEx}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-2"><Icon name="palette" size={16} className="text-surface-400"/><h3 className="text-sm font-semibold text-surface-700">Select a message type</h3></div>
+              <p className="text-xs text-surface-500">Choose a message type above to see tone-specific guidelines, character limits, and do/don't examples for that situation.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── TONE FRAMEWORK ───────────────────────────────────
+const allTones = ['Clear','Friendly','Open-minded','Useful','Supportive','Empowering','Delightful'];
+const toneColors = { Clear:'bg-blue-100 text-blue-800 border-blue-200', Friendly:'bg-emerald-100 text-emerald-800 border-emerald-200', 'Open-minded':'bg-violet-100 text-violet-800 border-violet-200', Useful:'bg-amber-100 text-amber-800 border-amber-200', Supportive:'bg-rose-100 text-rose-800 border-rose-200', Empowering:'bg-indigo-100 text-indigo-800 border-indigo-200', Delightful:'bg-pink-100 text-pink-800 border-pink-200' };
+const toneDots = { Clear:'bg-blue-500', Friendly:'bg-emerald-500', 'Open-minded':'bg-violet-500', Useful:'bg-amber-500', Supportive:'bg-rose-500', Empowering:'bg-indigo-500', Delightful:'bg-pink-500' };
+
+function ToneFramework() {
+  const [expIdx, setExpIdx] = useState(null);
+  const [filterTone, setFilterTone] = useState(null);
+  const filtered = filterTone ? toneFramework.filter(t=>t.tones.includes(filterTone)) : toneFramework;
+
+  return (
+    <div className="space-y-8">
+      <div><h1 className="text-2xl font-bold">Tone framework</h1><p className="text-surface-500 mt-1">Which tones to use for different content situations.</p></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-3"><Icon name="sparkles" size={18} className="text-brand-600"/><h2 className="font-semibold">Voice: BOLD</h2></div>
+          <p className="text-sm text-surface-500 mb-3">Stays consistent across all content.</p>
+          <div className="flex flex-wrap gap-2">{voiceAndTone.voice.traits.map(t=>(<span key={t.letter} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-800">{t.word}</span>))}</div>
+        </div>
+        <div className="bg-white rounded-xl border border-surface-200 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-3"><Icon name="target" size={18} className="text-purple-600"/><h2 className="font-semibold">Tone: FOCUSED</h2></div>
+          <p className="text-sm text-surface-500 mb-3">Adapts based on the situation.</p>
+          <div className="flex flex-wrap gap-2">{voiceAndTone.tone.traits.map(t=>(<span key={t.letter} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">{t.word}</span>))}</div>
+        </div>
+      </div>
+      {/* Tone Matrix */}
+      <div className="bg-white rounded-xl border border-surface-200 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-surface-100"><h2 className="font-semibold">Tone matrix</h2><p className="text-sm text-surface-400 mt-1">Select a tone column header to filter situations.</p></div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-surface-50">
+              <th className="text-left px-4 py-3 font-medium text-surface-600 sticky left-0 bg-surface-50 min-w-[160px]">Situation</th>
+              {allTones.map(t=>(<th key={t} className="px-3 py-3 text-center font-medium text-surface-600 cursor-pointer hover:bg-surface-100 min-w-[90px]" onClick={()=>setFilterTone(filterTone===t?null:t)}><span className={filterTone===t?'text-brand-700 underline':''}>{t}</span></th>))}
+            </tr></thead>
+            <tbody>{toneFramework.map((item,idx)=>(
+              <tr key={idx} className="border-t border-surface-100 hover:bg-surface-50">
+                <td className="px-4 py-3 font-medium text-surface-800 sticky left-0 bg-white">{item.situation}</td>
+                {allTones.map(t=>(<td key={t} className="px-3 py-3 text-center">{item.tones.includes(t)?<span className={`inline-block w-4 h-4 rounded-full ${toneDots[t]}`}/>:<span className="inline-block w-4 h-4 rounded-full bg-surface-100"/>}</td>))}
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      </div>
+      {filterTone && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-surface-500">Filtered:</span>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${toneColors[filterTone]}`}>{filterTone}</span>
+          <button onClick={()=>setFilterTone(null)} className="text-xs text-surface-400 hover:text-surface-600 underline">Clear</button>
+        </div>
+      )}
+      {/* Detail cards */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">Situation details</h2>
+        {filtered.map((item,idx)=>{
+          const isExp = expIdx===idx;
+          return (
+            <div key={idx} className="bg-white rounded-xl border border-surface-200 shadow-sm overflow-hidden">
+              <button onClick={()=>setExpIdx(isExp?null:idx)} className="w-full flex items-start gap-3 p-4 text-left hover:bg-surface-50 transition-colors">
+                <Icon name={isExp?'chevronDown':'chevronRight'} size={18} className="text-surface-400 mt-0.5 shrink-0"/>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold">{item.situation}</h3>
+                    {item.tones.map(t=>(<span key={t} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${toneColors[t]}`}>{t}</span>))}
+                  </div>
+                  {!isExp && <p className="text-sm text-surface-500 mt-1">{item.desc}</p>}
+                </div>
+              </button>
+              {isExp && (
+                <div className="px-4 pb-4 border-t border-surface-100">
+                  <p className="text-sm text-surface-600 mt-4 mb-4">{item.desc}</p>
+                  <div className="mb-4"><h4 className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-2">Guidelines</h4>
+                    <ul className="space-y-1.5">{item.guidelines.map((g,i)=>(<li key={i} className="flex items-start gap-2 text-sm text-surface-700"><span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-1.5 shrink-0"/>{g}</li>))}</ul>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3"><div className="flex items-center gap-1.5 mb-2"><Icon name="check" size={14} className="text-emerald-600"/><span className="text-xs font-semibold text-emerald-700 uppercase">Do</span></div><p className="text-sm text-emerald-800">{item.doEx}</p></div>
+                    <div className="rounded-lg bg-red-50 border border-red-200 p-3"><div className="flex items-center gap-1.5 mb-2"><Icon name="x" size={14} className="text-red-600"/><span className="text-xs font-semibold text-red-700 uppercase">Don't</span></div><p className="text-sm text-red-800">{item.dontEx}</p></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── SCREEN LIBRARY ───────────────────────────────────
+function ScreenLibrary() {
+  const [screens, setScreens] = useState(loadScreens);
+  const [sessions, setSessions] = useState(loadSessions);
+  const [search, setSearch] = useState('');
+  const [filterTag, setFilterTag] = useState(null);
+  const [viewMode, setViewMode] = useState('grid');
+  const [selected, setSelected] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [ocrQueue, setOcrQueue] = useState([]); // ids being processed
+  const fileRef = useRef(null);
+
+  // Persist helper
+  const updateScreenData = (id, updates) => {
+    setScreens(prev => {
+      const next = prev.map(s => s.id===id ? {...s,...updates} : s);
+      saveScreens(next);
+      return next;
+    });
+    if (selected?.id===id) setSelected(s => s ? {...s,...updates} : s);
+  };
+
+  // Run OCR + analysis on a single screen
+  const analyzeScreen = useCallback(async (screen) => {
+    setOcrQueue(q => [...q, screen.id]);
+    updateScreenData(screen.id, { ocrStatus:'processing' });
+    const extractedText = await ocrImage(screen.dataUrl);
+    const { issues, score } = analyzeExtractedText(extractedText);
+    const analysisData = { extractedText, analysis:issues, analysisScore:score, analyzedAt:new Date().toISOString(), ocrStatus:'done' };
+    setScreens(prev => {
+      const next = prev.map(s => s.id===screen.id ? {...s,...analysisData} : s);
+      saveScreens(next);
+      return next;
+    });
+    setSelected(s => s?.id===screen.id ? {...s,...analysisData} : s);
+    setOcrQueue(q => q.filter(qid => qid!==screen.id));
+  }, []);
+
+  const addScreens = useCallback(files => {
+    const imageFiles = Array.from(files).filter(f=>f.type.startsWith('image/'));
+    if (!imageFiles.length) return;
+    let done = 0;
+    const newItems = [];
+    const sessionId = Date.now()+'-'+Math.random().toString(36).substr(2,6);
+    imageFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const screen = {
+          id:Date.now()+'-'+Math.random().toString(36).substr(2,6),
+          name:file.name, dataUrl:e.target.result, tags:[], notes:'',
+          createdAt:new Date().toISOString(), sessionId,
+          extractedText:null, analysis:null, analysisScore:null, analyzedAt:null, ocrStatus:'pending'
+        };
+        newItems.push(screen);
+        done++;
+        if (done===imageFiles.length) {
+          // Save screens
+          setScreens(prev => { const next=[...newItems,...prev]; saveScreens(next); return next; });
+          // Create session
+          const session = { id:sessionId, createdAt:new Date().toISOString(), screenIds:newItems.map(s=>s.id), name:`Upload ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}`, fileCount:newItems.length };
+          setSessions(prev => { const next=[session,...prev]; saveSessions(next); return next; });
+          // Auto-analyze each screen
+          newItems.forEach(s => {
+            (async () => {
+              setOcrQueue(q => [...q, s.id]);
+              const extractedText = await ocrImage(s.dataUrl);
+              const { issues, score } = analyzeExtractedText(extractedText);
+              const analysisData = { extractedText, analysis:issues, analysisScore:score, analyzedAt:new Date().toISOString(), ocrStatus:'done' };
+              setScreens(prev => { const next=prev.map(x => x.id===s.id ? {...x,...analysisData} : x); saveScreens(next); return next; });
+              setSelected(sel => sel?.id===s.id ? {...sel,...analysisData} : sel);
+              setOcrQueue(q => q.filter(qid => qid!==s.id));
+            })();
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  },[]);
+
+  const remove = id => {
+    setScreens(prev=>{ const next=prev.filter(s=>s.id!==id); saveScreens(next); return next; });
+    setSessions(prev => { const next=prev.map(ses=>({...ses,screenIds:ses.screenIds.filter(sid=>sid!==id)})).filter(ses=>ses.screenIds.length>0); saveSessions(next); return next; });
+    if(selected?.id===id) setSelected(null);
+  };
+
+  const toggleTag = (sid,tag) => {
+    setScreens(prev=>{ const next=prev.map(s=>{ if(s.id!==sid) return s; const tags=s.tags.includes(tag)?s.tags.filter(t=>t!==tag):[...s.tags,tag]; return {...s,tags}; }); saveScreens(next); return next; });
+    if(selected?.id===sid) setSelected(s=>{ const tags=s.tags.includes(tag)?s.tags.filter(t=>t!==tag):[...s.tags,tag]; return {...s,tags}; });
+  };
+
+  const allTags = [...new Set(screens.flatMap(s=>s.tags))];
+  const filtered = screens.filter(s => {
+    const ms = !search || s.name.toLowerCase().includes(search.toLowerCase()) || (s.notes||'').toLowerCase().includes(search.toLowerCase()) || s.tags.some(t=>t.toLowerCase().includes(search.toLowerCase())) || (s.extractedText||'').toLowerCase().includes(search.toLowerCase());
+    const mt = !filterTag || s.tags.includes(filterTag);
+    return ms && mt;
+  });
+
+  // Score badge helper
+  const ScoreBadge = ({score, size='sm'}) => {
+    if (score===null||score===undefined) return null;
+    const color = score>=80?'bg-emerald-100 text-emerald-700':score>=60?'bg-amber-100 text-amber-700':'bg-red-100 text-red-700';
+    return <span className={`inline-flex items-center px-1.5 py-0 rounded-full font-medium ${color} ${size==='sm'?'text-[10px]':'text-xs'}`}>{score}</span>;
+  };
+
+  return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold">Screen library</h1><p className="text-surface-500 mt-1">Upload content screenshots to auto-analyze text against OKX guidelines.</p></div>
+
+      {/* Upload zone */}
+      <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={e=>{e.preventDefault();setDragOver(false);if(e.dataTransfer.files?.length) addScreens(e.dataTransfer.files);}} onClick={()=>fileRef.current?.click()}
+        className={`bg-white rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${dragOver?'border-brand-500 bg-brand-50':'border-surface-200 hover:border-surface-300'}`}>
+        <Icon name="upload" size={32} className={`mx-auto mb-3 ${dragOver?'text-brand-500':'text-surface-300'}`}/>
+        <p className="text-sm font-medium text-surface-700">Drop screenshots here or select to upload</p>
+        <p className="text-xs text-surface-400 mt-1">PNG, JPG, or WebP &mdash; text will be extracted and checked automatically</p>
+        <input ref={fileRef} type="file" accept="image/*" multiple onChange={e=>{if(e.target.files?.length) addScreens(e.target.files); e.target.value='';}} className="hidden"/>
+      </div>
+
+      {/* Processing indicator */}
+      {ocrQueue.length > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-brand-50 border border-brand-200">
+          <div className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin shrink-0"/>
+          <p className="text-sm text-brand-800">Analyzing {ocrQueue.length} screen{ocrQueue.length!==1?'s':''}... Extracting text and checking against guidelines.</p>
+        </div>
+      )}
+
+      {screens.length>0 && (<>
+        {/* Toolbar */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <div className="relative flex-1 w-full"><Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"/><input type="text" placeholder="Search by name, notes, tags, or extracted text..." value={search} onChange={e=>setSearch(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-surface-200 bg-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500 pl-10 text-sm"/></div>
+          <div className="flex items-center gap-2">
+            <button onClick={()=>setViewMode('grid')} className={`p-2 rounded-lg ${viewMode==='grid'?'bg-brand-100 text-brand-700':'text-surface-400 hover:text-surface-600'}`}><Icon name="grid" size={18}/></button>
+            <button onClick={()=>setViewMode('list')} className={`p-2 rounded-lg ${viewMode==='list'?'bg-brand-100 text-brand-700':'text-surface-400 hover:text-surface-600'}`}><Icon name="list" size={18}/></button>
+            <span className="text-sm text-surface-400 ml-2">{filtered.length} screen{filtered.length!==1?'s':''}</span>
+          </div>
+        </div>
+
+        {/* Tag filters */}
+        {allTags.length>0 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <Icon name="tag" size={14} className="text-surface-400"/>
+            {allTags.map(tag=>(<button key={tag} onClick={()=>setFilterTag(filterTag===tag?null:tag)} className={`px-2.5 py-1 rounded-full text-xs font-medium ${filterTag===tag?'bg-brand-700 text-white':'bg-surface-100 text-surface-600 hover:bg-surface-200'}`}>{tag}</button>))}
+            {filterTag && <button onClick={()=>setFilterTag(null)} className="text-xs text-surface-400 hover:text-surface-600 underline">Clear</button>}
+          </div>
+        )}
+
+        {/* Grid/List view */}
+        {viewMode==='grid' ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filtered.map(s=>(
+              <div key={s.id} className="bg-white rounded-xl border border-surface-200 shadow-sm overflow-hidden group cursor-pointer" onClick={()=>setSelected(s)}>
+                <div className="relative aspect-[4/3] bg-surface-100">
+                  <img src={s.dataUrl} alt={s.name} className="w-full h-full object-cover"/>
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center"><Icon name="zoom" size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity"/></div>
+                  <button onClick={e=>{e.stopPropagation();remove(s.id)}} className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500"><Icon name="x" size={12}/></button>
+                  {/* Status indicator */}
+                  {s.ocrStatus==='processing' && <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-brand-600 text-white text-[10px] font-medium flex items-center gap-1"><div className="w-2.5 h-2.5 border border-white border-t-transparent rounded-full animate-spin"/>Analyzing</div>}
+                  {s.analysisScore!==null && s.analysisScore!==undefined && <div className="absolute top-2 left-2"><ScoreBadge score={s.analysisScore}/></div>}
+                </div>
+                <div className="p-3">
+                  <p className="text-xs font-medium text-surface-700 truncate">{s.name}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    {s.analysis && <span className="text-[10px] text-surface-400">{s.analysis.length} issue{s.analysis.length!==1?'s':''}</span>}
+                    {s.tags.length>0 && s.tags.slice(0,2).map(t=>(<span key={t} className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-surface-100 text-surface-700">{t}</span>))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map(s=>(
+              <div key={s.id} className="bg-white rounded-xl border border-surface-200 shadow-sm flex items-center gap-4 p-3 cursor-pointer hover:shadow-md" onClick={()=>setSelected(s)}>
+                <div className="w-16 h-12 rounded-lg overflow-hidden bg-surface-100 shrink-0"><img src={s.dataUrl} alt={s.name} className="w-full h-full object-cover"/></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{s.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {s.ocrStatus==='processing' && <span className="text-[10px] text-brand-600 font-medium">Analyzing...</span>}
+                    {s.analysis && <span className="text-xs text-surface-400">{s.analysis.length} issue{s.analysis.length!==1?'s':''}</span>}
+                    <ScoreBadge score={s.analysisScore}/>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1 shrink-0">{s.tags.map(t=>(<span key={t} className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-surface-100 text-surface-700">{t}</span>))}</div>
+                <button onClick={e=>{e.stopPropagation();remove(s.id)}} className="text-surface-300 hover:text-red-500 shrink-0"><Icon name="trash" size={14}/></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </>)}
+
+      {screens.length===0 && (
+        <div className="text-center py-16 text-surface-400"><Icon name="image" size={48} className="mx-auto mb-4 text-surface-200"/><p className="text-lg font-medium">No screens uploaded yet</p><p className="text-sm mt-1">Upload screenshots to auto-analyze content against guidelines.</p></div>
+      )}
+
+      {/* ── Detail modal with analysis ── */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={()=>setSelected(null)}>
+          <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-surface-100">
+              <div className="flex items-center gap-3 min-w-0">
+                <h3 className="font-semibold truncate">{selected.name}</h3>
+                <ScoreBadge score={selected.analysisScore} size="md"/>
+              </div>
+              <button onClick={()=>setSelected(null)} className="text-surface-400 hover:text-surface-600 shrink-0"><Icon name="x" size={20}/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                {/* Left: image */}
+                <div className="lg:col-span-2">
+                  <div className="bg-surface-100 rounded-xl overflow-hidden mb-4"><img src={selected.dataUrl} alt={selected.name} className="w-full h-auto"/></div>
+                  {/* Tags */}
+                  <div className="mb-4"><label className="text-xs font-semibold uppercase tracking-wider text-surface-400 block mb-1.5">Tags</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SUGGESTED_TAGS.map(tag=>{
+                        const active = selected.tags.includes(tag);
+                        return (<button key={tag} onClick={()=>toggleTag(selected.id,tag)} className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${active?'bg-brand-600 text-white':'bg-surface-100 text-surface-500 hover:bg-surface-200'}`}>{active&&'\u2713 '}{tag}</button>);
+                      })}
+                    </div>
+                  </div>
+                  {/* Notes */}
+                  <div><label className="text-xs font-semibold uppercase tracking-wider text-surface-400 block mb-1.5">Notes</label>
+                    <textarea value={selected.notes||''} onChange={e=>updateScreenData(selected.id,{notes:e.target.value})} placeholder="Add notes..." className="w-full px-3 py-2 rounded-lg border border-surface-200 bg-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm min-h-[60px] resize-y"/>
+                  </div>
+                  <p className="text-xs text-surface-400 mt-2">Uploaded: {new Date(selected.createdAt).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'})}</p>
+                </div>
+
+                {/* Right: extracted text + analysis */}
+                <div className="lg:col-span-3 space-y-4">
+                  {/* Extracted text */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-surface-400">Extracted text</label>
+                      <button onClick={()=>analyzeScreen(selected)} className="px-2.5 py-1 rounded-md text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium transition-colors">
+                        {selected.ocrStatus==='processing' ? 'Analyzing...' : 'Re-analyze'}
+                      </button>
+                    </div>
+                    {selected.ocrStatus==='processing' ? (
+                      <div className="flex items-center gap-2 p-4 rounded-lg bg-surface-50 border border-surface-200">
+                        <div className="w-4 h-4 border-2 border-brand-600 border-t-transparent rounded-full animate-spin"/>
+                        <span className="text-sm text-surface-500">Extracting text from image...</span>
+                      </div>
+                    ) : selected.extractedText ? (
+                      <textarea
+                        value={selected.extractedText}
+                        onChange={e => {
+                          const newText = e.target.value;
+                          const { issues, score } = analyzeExtractedText(newText);
+                          updateScreenData(selected.id, { extractedText:newText, analysis:issues, analysisScore:score });
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-surface-200 bg-surface-50 text-sm font-mono leading-relaxed min-h-[80px] resize-y focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    ) : (
+                      <div className="p-4 rounded-lg bg-surface-50 border border-surface-200 text-sm text-surface-400 text-center">
+                        {selected.ocrStatus==='done' ? 'No text could be extracted from this image.' : 'Text extraction pending. It will start automatically.'}
+                      </div>
+                    )}
+                    {selected.extractedText && <p className="text-[10px] text-surface-400 mt-1">You can edit the extracted text above to correct OCR errors, then analysis updates live.</p>}
+                  </div>
+
+                  {/* Analysis results */}
+                  {selected.analysis && selected.analysis.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-surface-400">
+                          Content analysis ({selected.analysis.length} issue{selected.analysis.length!==1?'s':''})
+                        </label>
+                        <div className="flex items-center gap-3 text-[10px]">
+                          <span className="text-red-600">{selected.analysis.filter(i=>i.sev==='error').length} errors</span>
+                          <span className="text-amber-600">{selected.analysis.filter(i=>i.sev==='warning').length} warnings</span>
+                          <span className="text-blue-600">{selected.analysis.filter(i=>i.sev==='info').length} suggestions</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                        {selected.analysis.map((issue,idx)=>{
+                          const c = sevConfig[issue.sev];
+                          return (
+                            <div key={idx} className={`rounded-lg border p-2.5 ${c.bg} ${c.border}`}>
+                              <div className="flex items-start gap-2">
+                                <Icon name={c.icon} size={14} className={`${c.color} mt-0.5 shrink-0`}/>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap"><span className="text-xs font-medium">{issue.name}</span><span className="text-[10px] text-surface-400">{issue.cat}</span></div>
+                                  <p className="text-xs text-surface-600 mt-0.5">{issue.msg}</p>
+                                  {issue.matchText && <p className="text-[10px] font-mono text-surface-500 mt-1 bg-white/60 rounded px-1.5 py-0.5 inline-block">"{issue.matchText}"</p>}
+                                  {issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : selected.analysis && selected.analysis.length===0 && selected.extractedText ? (
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                      <Icon name="checkCircle" size={20} className="text-emerald-600"/>
+                      <div><p className="text-sm font-medium text-emerald-800">No issues found</p><p className="text-xs text-emerald-600">The content in this screen follows OKX guidelines.</p></div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── APP ──────────────────────────────────────────────
+function App() {
+  const [page, setPage] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const pages = {
+    dashboard: <Dashboard setPage={setPage}/>,
+    guide: <StyleGuide/>,
+    checker: <ContentChecker/>,
+    tone: <ToneFramework/>,
+    screens: <ScreenLibrary/>,
+  };
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar page={page} setPage={setPage} open={sidebarOpen} setOpen={setSidebarOpen}/>
+      <main className={`flex-1 overflow-y-auto transition-all duration-300 ${sidebarOpen?'ml-64':'ml-16'}`}>
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          {pages[page] || pages.dashboard}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
