@@ -169,6 +169,68 @@ async function ocrImage(dataUrl) {
   }
 }
 
+// ── FIGMA INTEGRATION ─────────────────────────────────
+const FIGMA_PAT_KEY = 'figma-pat';
+function loadFigmaPat(){ return localStorage.getItem(FIGMA_PAT_KEY)||'' }
+function saveFigmaPat(t){ localStorage.setItem(FIGMA_PAT_KEY, t) }
+
+function parseFigmaUrl(url) {
+  const m = url.match(/figma\.com\/(?:file|design|proto|board)\/([a-zA-Z0-9]+)/);
+  if (!m) return null;
+  const fileKey = m[1];
+  const nodeMatch = url.match(/node-id=([^&]+)/);
+  const nodeId = nodeMatch ? decodeURIComponent(nodeMatch[1]).replace('-',':') : null;
+  return { fileKey, nodeId };
+}
+
+function extractTextFromFigmaNodes(node) {
+  const texts = [];
+  if (node.type === 'TEXT' && node.characters) {
+    texts.push(node.characters);
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      texts.push(...extractTextFromFigmaNodes(child));
+    }
+  }
+  return texts;
+}
+
+async function fetchFigmaFile(fileKey, nodeId, token) {
+  let url = `https://api.figma.com/v1/files/${fileKey}`;
+  if (nodeId) url += `?ids=${encodeURIComponent(nodeId)}&depth=10`;
+  else url += '?depth=10';
+  const res = await fetch(url, { headers: { 'X-Figma-Token': token } });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Figma API error (${res.status}): ${err}`);
+  }
+  return res.json();
+}
+
+async function fetchFigmaThumbnail(fileKey, nodeId, token) {
+  if (!nodeId) return null;
+  const url = `https://api.figma.com/v1/images/${fileKey}?ids=${encodeURIComponent(nodeId)}&format=png&scale=2`;
+  try {
+    const res = await fetch(url, { headers: { 'X-Figma-Token': token } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const images = data.images || {};
+    return Object.values(images)[0] || null;
+  } catch { return null; }
+}
+
+function findNodeById(node, targetId) {
+  if (node.id === targetId) return node;
+  if (node.children) {
+    for (const child of node.children) {
+      const found = findNodeById(child, targetId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 const sevConfig = {
   error: { icon:'alertCircle', color:'text-red-600', bg:'bg-red-50', border:'border-red-200' },
   warning: { icon:'alertTriangle', color:'text-amber-600', bg:'bg-amber-50', border:'border-amber-200' },
@@ -203,6 +265,11 @@ function Icon({name, size=20, className=''}){
     zoom: <svg {...props}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg>,
     tag: <svg {...props}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>,
     checkCircle: <svg {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+    figma: <svg {...props} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 24c2.2 0 4-1.8 4-4v-4H8c-2.2 0-4 1.8-4 4s1.8 4 4 4zm0-20C5.8 4 4 5.8 4 8s1.8 4 4 4h4V4H8zm0-4h4v8H8C5.8 8 4 6.2 4 4s1.8-4 4-4zm8 0c-2.2 0-4 1.8-4 4s1.8 4 4 4h4V0h-4zm0 8c-2.2 0-4 1.8-4 4s1.8 4 4 4 4-1.8 4-4-1.8-4-4-4z"/></svg>,
+    link: <svg {...props}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+    settings: <svg {...props}><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>,
+    eye: <svg {...props}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+    eyeOff: <svg {...props}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
   };
   return icons[name] || null;
 }
@@ -901,8 +968,18 @@ function ScreenLibrary() {
   const [viewMode, setViewMode] = useState('grid');
   const [selected, setSelected] = useState(null);
   const [dragOver, setDragOver] = useState(false);
-  const [ocrQueue, setOcrQueue] = useState([]); // ids being processed
+  const [ocrQueue, setOcrQueue] = useState([]);
   const fileRef = useRef(null);
+
+  // Input mode tabs
+  const [inputTab, setInputTab] = useState('figma'); // 'figma' | 'upload'
+  // Figma state
+  const [figmaPat, setFigmaPat] = useState(loadFigmaPat);
+  const [showPatInput, setShowPatInput] = useState(!loadFigmaPat());
+  const [patVisible, setPatVisible] = useState(false);
+  const [figmaUrl, setFigmaUrl] = useState('');
+  const [figmaLoading, setFigmaLoading] = useState(false);
+  const [figmaError, setFigmaError] = useState('');
 
   // Persist helper
   const updateScreenData = (id, updates) => {
@@ -930,6 +1007,73 @@ function ScreenLibrary() {
     setOcrQueue(q => q.filter(qid => qid!==screen.id));
   }, []);
 
+  // ── Figma scan ──
+  const scanFigma = useCallback(async () => {
+    setFigmaError('');
+    const parsed = parseFigmaUrl(figmaUrl);
+    if (!parsed) { setFigmaError('Invalid Figma URL. Paste a link like https://www.figma.com/design/FILE_KEY/...'); return; }
+    if (!figmaPat) { setFigmaError('Please set your Figma token first.'); setShowPatInput(true); return; }
+
+    setFigmaLoading(true);
+    try {
+      // 1. Fetch file data
+      const data = await fetchFigmaFile(parsed.fileKey, parsed.nodeId, figmaPat);
+      const fileName = data.name || 'Figma file';
+
+      // 2. Find the target node and extract text
+      let targetNode = data.document;
+      let nodeName = fileName;
+      if (parsed.nodeId) {
+        const found = findNodeById(data.document, parsed.nodeId);
+        if (found) { targetNode = found; nodeName = found.name || nodeName; }
+      }
+      const textParts = extractTextFromFigmaNodes(targetNode);
+      const extractedText = textParts.join('\n');
+
+      // 3. Get thumbnail
+      const thumbNodeId = parsed.nodeId || (data.document.children?.[0]?.id);
+      let thumbnailUrl = data.thumbnailUrl || null;
+      if (thumbNodeId) {
+        const img = await fetchFigmaThumbnail(parsed.fileKey, thumbNodeId, figmaPat);
+        if (img) thumbnailUrl = img;
+      }
+
+      // 4. Analyze
+      const { issues, score } = analyzeExtractedText(extractedText);
+
+      // 5. Create screen + session
+      const screenId = Date.now()+'-'+Math.random().toString(36).substr(2,6);
+      const sessionId = Date.now()+'-'+Math.random().toString(36).substr(2,6);
+      const screen = {
+        id:screenId, name:`${fileName} — ${nodeName}`, dataUrl:thumbnailUrl||'', tags:[], notes:'',
+        createdAt:new Date().toISOString(), sessionId,
+        extractedText, analysis:issues, analysisScore:score, analyzedAt:new Date().toISOString(),
+        ocrStatus:'done', source:'figma', figmaUrl:figmaUrl
+      };
+      const session = { id:sessionId, createdAt:new Date().toISOString(), screenIds:[screenId], name:`Figma: ${nodeName}`, fileCount:1 };
+
+      setScreens(prev => { const next=[screen,...prev]; saveScreens(next); return next; });
+      setSessions(prev => { const next=[session,...prev]; saveSessions(next); return next; });
+      setFigmaUrl('');
+      setSelected(screen);
+    } catch(e) {
+      console.error('Figma scan failed:', e);
+      if (e.message.includes('403')) setFigmaError('Access denied. Check that your token has file_content:read scope and you have access to this file.');
+      else if (e.message.includes('404')) setFigmaError('File not found. Check the Figma URL is correct.');
+      else if (e.message.includes('429')) setFigmaError('Rate limited by Figma. Wait a minute and try again.');
+      else setFigmaError(`Failed to scan: ${e.message}`);
+    } finally {
+      setFigmaLoading(false);
+    }
+  }, [figmaUrl, figmaPat]);
+
+  // Save PAT
+  const handleSavePat = (val) => {
+    setFigmaPat(val);
+    saveFigmaPat(val);
+    if (val) setShowPatInput(false);
+  };
+
   const addScreens = useCallback(files => {
     const imageFiles = Array.from(files).filter(f=>f.type.startsWith('image/'));
     if (!imageFiles.length) return;
@@ -943,17 +1087,15 @@ function ScreenLibrary() {
           id:Date.now()+'-'+Math.random().toString(36).substr(2,6),
           name:file.name, dataUrl:e.target.result, tags:[], notes:'',
           createdAt:new Date().toISOString(), sessionId,
-          extractedText:null, analysis:null, analysisScore:null, analyzedAt:null, ocrStatus:'pending'
+          extractedText:null, analysis:null, analysisScore:null, analyzedAt:null, ocrStatus:'pending',
+          source:'upload'
         };
         newItems.push(screen);
         done++;
         if (done===imageFiles.length) {
-          // Save screens
           setScreens(prev => { const next=[...newItems,...prev]; saveScreens(next); return next; });
-          // Create session
           const session = { id:sessionId, createdAt:new Date().toISOString(), screenIds:newItems.map(s=>s.id), name:`Upload ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}`, fileCount:newItems.length };
           setSessions(prev => { const next=[session,...prev]; saveSessions(next); return next; });
-          // Auto-analyze each screen
           newItems.forEach(s => {
             (async () => {
               setOcrQueue(q => [...q, s.id]);
@@ -989,7 +1131,6 @@ function ScreenLibrary() {
     return ms && mt;
   });
 
-  // Score badge helper
   const ScoreBadge = ({score, size='sm'}) => {
     if (score===null||score===undefined) return null;
     const color = score>=80?'bg-emerald-100 text-emerald-700':score>=60?'bg-amber-100 text-amber-700':'bg-red-100 text-red-700';
@@ -998,15 +1139,73 @@ function ScreenLibrary() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold">Screen library</h1><p className="text-surface-500 mt-1">Upload content screenshots to auto-analyze text against OKX guidelines.</p></div>
+      <div><h1 className="text-2xl font-bold">Screen library</h1><p className="text-surface-500 mt-1">Scan Figma designs or upload screenshots to check content against OKX guidelines.</p></div>
 
-      {/* Upload zone */}
-      <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={e=>{e.preventDefault();setDragOver(false);if(e.dataTransfer.files?.length) addScreens(e.dataTransfer.files);}} onClick={()=>fileRef.current?.click()}
-        className={`bg-white rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${dragOver?'border-brand-500 bg-brand-50':'border-surface-200 hover:border-surface-300'}`}>
-        <Icon name="upload" size={32} className={`mx-auto mb-3 ${dragOver?'text-brand-500':'text-surface-300'}`}/>
-        <p className="text-sm font-medium text-surface-700">Drop screenshots here or select to upload</p>
-        <p className="text-xs text-surface-400 mt-1">PNG, JPG, or WebP &mdash; text will be extracted and checked automatically</p>
-        <input ref={fileRef} type="file" accept="image/*" multiple onChange={e=>{if(e.target.files?.length) addScreens(e.target.files); e.target.value='';}} className="hidden"/>
+      {/* ── Input zone with tabs ── */}
+      <div className="bg-white rounded-xl border border-surface-200 shadow-sm overflow-hidden">
+        <div className="flex border-b border-surface-100">
+          <button onClick={()=>setInputTab('figma')} className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ${inputTab==='figma'?'border-brand-600 text-brand-700 bg-brand-50/50':'border-transparent text-surface-500 hover:text-surface-700'}`}>
+            <Icon name="figma" size={16}/> Figma link
+          </button>
+          <button onClick={()=>setInputTab('upload')} className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ${inputTab==='upload'?'border-brand-600 text-brand-700 bg-brand-50/50':'border-transparent text-surface-500 hover:text-surface-700'}`}>
+            <Icon name="upload" size={16}/> Upload screenshots
+          </button>
+        </div>
+
+        {/* Figma tab */}
+        {inputTab==='figma' && (
+          <div className="p-5 space-y-4">
+            {/* PAT setup */}
+            {showPatInput ? (
+              <div className="rounded-lg border border-surface-200 bg-surface-50 p-4 space-y-3">
+                <div className="flex items-center gap-2"><Icon name="settings" size={16} className="text-surface-500"/><h3 className="text-sm font-semibold text-surface-700">Connect to Figma</h3></div>
+                <p className="text-xs text-surface-500">Generate a Personal Access Token in Figma: Settings &rarr; Security &rarr; Generate new token. Enable the <strong>file_content:read</strong> scope.</p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input type={patVisible?'text':'password'} value={figmaPat} onChange={e=>setFigmaPat(e.target.value)} placeholder="figd_xxxxxxxxxxxx" className="w-full px-3 py-2 rounded-lg border border-surface-200 bg-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 pr-9"/>
+                    <button onClick={()=>setPatVisible(!patVisible)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"><Icon name={patVisible?'eyeOff':'eye'} size={14}/></button>
+                  </div>
+                  <button onClick={()=>handleSavePat(figmaPat)} disabled={!figmaPat.trim()} className="px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0">Save</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                <div className="flex items-center gap-2"><Icon name="checkCircle" size={14} className="text-emerald-600"/><span className="text-xs font-medium text-emerald-700">Figma connected</span></div>
+                <button onClick={()=>setShowPatInput(true)} className="text-xs text-emerald-600 hover:text-emerald-800 underline">Change token</button>
+              </div>
+            )}
+
+            {/* URL input */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Icon name="link" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"/>
+                <input type="text" value={figmaUrl} onChange={e=>{setFigmaUrl(e.target.value);setFigmaError('');}}
+                  onKeyDown={e=>{if(e.key==='Enter'&&figmaUrl.trim()) scanFigma();}}
+                  placeholder="Paste a Figma design link (e.g. figma.com/design/abc123/...)"
+                  className="w-full px-4 py-3 rounded-lg border border-surface-200 bg-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500 pl-10 text-sm"/>
+              </div>
+              <button onClick={scanFigma} disabled={figmaLoading||!figmaUrl.trim()}
+                className="px-5 py-3 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2">
+                {figmaLoading ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Scanning...</>) : (<><Icon name="search" size={16}/>Scan</>)}
+              </button>
+            </div>
+            {figmaError && <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200"><Icon name="alertCircle" size={14} className="text-red-500 mt-0.5 shrink-0"/><p className="text-xs text-red-700">{figmaError}</p></div>}
+            <p className="text-xs text-surface-400">Tip: Include a <code className="bg-surface-100 px-1 rounded">?node-id=</code> in the URL to scan a specific frame. Text is extracted directly from Figma — no OCR needed.</p>
+          </div>
+        )}
+
+        {/* Upload tab */}
+        {inputTab==='upload' && (
+          <div className="p-5">
+            <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)} onDrop={e=>{e.preventDefault();setDragOver(false);if(e.dataTransfer.files?.length) addScreens(e.dataTransfer.files);}} onClick={()=>fileRef.current?.click()}
+              className={`rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${dragOver?'border-brand-500 bg-brand-50':'border-surface-200 hover:border-surface-300'}`}>
+              <Icon name="upload" size={32} className={`mx-auto mb-3 ${dragOver?'text-brand-500':'text-surface-300'}`}/>
+              <p className="text-sm font-medium text-surface-700">Drop screenshots here or select to upload</p>
+              <p className="text-xs text-surface-400 mt-1">PNG, JPG, or WebP &mdash; text will be extracted via OCR and checked automatically</p>
+              <input ref={fileRef} type="file" accept="image/*" multiple onChange={e=>{if(e.target.files?.length) addScreens(e.target.files); e.target.value='';}} className="hidden"/>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Processing indicator */}
@@ -1043,12 +1242,12 @@ function ScreenLibrary() {
             {filtered.map(s=>(
               <div key={s.id} className="bg-white rounded-xl border border-surface-200 shadow-sm overflow-hidden group cursor-pointer" onClick={()=>setSelected(s)}>
                 <div className="relative aspect-[4/3] bg-surface-100">
-                  <img src={s.dataUrl} alt={s.name} className="w-full h-full object-cover"/>
+                  {s.dataUrl ? <img src={s.dataUrl} alt={s.name} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center"><Icon name="figma" size={32} className="text-surface-300"/></div>}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center"><Icon name="zoom" size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity"/></div>
                   <button onClick={e=>{e.stopPropagation();remove(s.id)}} className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500"><Icon name="x" size={12}/></button>
-                  {/* Status indicator */}
                   {s.ocrStatus==='processing' && <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-brand-600 text-white text-[10px] font-medium flex items-center gap-1"><div className="w-2.5 h-2.5 border border-white border-t-transparent rounded-full animate-spin"/>Analyzing</div>}
                   {s.analysisScore!==null && s.analysisScore!==undefined && <div className="absolute top-2 left-2"><ScoreBadge score={s.analysisScore}/></div>}
+                  {s.source==='figma' && <div className="absolute bottom-2 right-2 w-5 h-5 rounded bg-white/90 flex items-center justify-center" title="From Figma"><Icon name="figma" size={12} className="text-purple-600"/></div>}
                 </div>
                 <div className="p-3">
                   <p className="text-xs font-medium text-surface-700 truncate">{s.name}</p>
@@ -1064,9 +1263,14 @@ function ScreenLibrary() {
           <div className="space-y-2">
             {filtered.map(s=>(
               <div key={s.id} className="bg-white rounded-xl border border-surface-200 shadow-sm flex items-center gap-4 p-3 cursor-pointer hover:shadow-md" onClick={()=>setSelected(s)}>
-                <div className="w-16 h-12 rounded-lg overflow-hidden bg-surface-100 shrink-0"><img src={s.dataUrl} alt={s.name} className="w-full h-full object-cover"/></div>
+                <div className="w-16 h-12 rounded-lg overflow-hidden bg-surface-100 shrink-0">
+                  {s.dataUrl ? <img src={s.dataUrl} alt={s.name} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center"><Icon name="figma" size={20} className="text-surface-300"/></div>}
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{s.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    {s.source==='figma' && <Icon name="figma" size={12} className="text-purple-600 shrink-0"/>}
+                    <p className="text-sm font-medium truncate">{s.name}</p>
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {s.ocrStatus==='processing' && <span className="text-[10px] text-brand-600 font-medium">Analyzing...</span>}
                     {s.analysis && <span className="text-xs text-surface-400">{s.analysis.length} issue{s.analysis.length!==1?'s':''}</span>}
@@ -1082,7 +1286,7 @@ function ScreenLibrary() {
       </>)}
 
       {screens.length===0 && (
-        <div className="text-center py-16 text-surface-400"><Icon name="image" size={48} className="mx-auto mb-4 text-surface-200"/><p className="text-lg font-medium">No screens uploaded yet</p><p className="text-sm mt-1">Upload screenshots to auto-analyze content against guidelines.</p></div>
+        <div className="text-center py-16 text-surface-400"><Icon name="image" size={48} className="mx-auto mb-4 text-surface-200"/><p className="text-lg font-medium">No screens yet</p><p className="text-sm mt-1">Paste a Figma link above to scan, or upload screenshots.</p></div>
       )}
 
       {/* ── Detail modal with analysis ── */}
@@ -1091,6 +1295,7 @@ function ScreenLibrary() {
           <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-surface-100">
               <div className="flex items-center gap-3 min-w-0">
+                {selected.source==='figma' && <Icon name="figma" size={16} className="text-purple-600 shrink-0"/>}
                 <h3 className="font-semibold truncate">{selected.name}</h3>
                 <ScoreBadge score={selected.analysisScore} size="md"/>
               </div>
@@ -1100,7 +1305,15 @@ function ScreenLibrary() {
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Left: image */}
                 <div className="lg:col-span-2">
-                  <div className="bg-surface-100 rounded-xl overflow-hidden mb-4"><img src={selected.dataUrl} alt={selected.name} className="w-full h-auto"/></div>
+                  <div className="bg-surface-100 rounded-xl overflow-hidden mb-4">
+                    {selected.dataUrl ? <img src={selected.dataUrl} alt={selected.name} className="w-full h-auto"/> : <div className="aspect-[4/3] flex items-center justify-center"><Icon name="figma" size={48} className="text-surface-300"/></div>}
+                  </div>
+                  {/* Figma link */}
+                  {selected.figmaUrl && (
+                    <a href={selected.figmaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-200 text-xs text-purple-700 hover:bg-purple-100 transition-colors mb-4">
+                      <Icon name="figma" size={12} className="shrink-0"/> Open in Figma &rarr;
+                    </a>
+                  )}
                   {/* Tags */}
                   <div className="mb-4"><label className="text-xs font-semibold uppercase tracking-wider text-surface-400 block mb-1.5">Tags</label>
                     <div className="flex flex-wrap gap-1.5">
@@ -1114,18 +1327,19 @@ function ScreenLibrary() {
                   <div><label className="text-xs font-semibold uppercase tracking-wider text-surface-400 block mb-1.5">Notes</label>
                     <textarea value={selected.notes||''} onChange={e=>updateScreenData(selected.id,{notes:e.target.value})} placeholder="Add notes..." className="w-full px-3 py-2 rounded-lg border border-surface-200 bg-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm min-h-[60px] resize-y"/>
                   </div>
-                  <p className="text-xs text-surface-400 mt-2">Uploaded: {new Date(selected.createdAt).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'})}</p>
+                  <p className="text-xs text-surface-400 mt-2">{selected.source==='figma'?'Scanned':'Uploaded'}: {new Date(selected.createdAt).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'})}</p>
                 </div>
 
                 {/* Right: extracted text + analysis */}
                 <div className="lg:col-span-3 space-y-4">
-                  {/* Extracted text */}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-surface-400">Extracted text</label>
-                      <button onClick={()=>analyzeScreen(selected)} className="px-2.5 py-1 rounded-md text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium transition-colors">
-                        {selected.ocrStatus==='processing' ? 'Analyzing...' : 'Re-analyze'}
-                      </button>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-surface-400">Extracted text {selected.source==='figma' && <span className="text-purple-500 normal-case">(from Figma)</span>}</label>
+                      {selected.source!=='figma' && (
+                        <button onClick={()=>analyzeScreen(selected)} className="px-2.5 py-1 rounded-md text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium transition-colors">
+                          {selected.ocrStatus==='processing' ? 'Analyzing...' : 'Re-analyze'}
+                        </button>
+                      )}
                     </div>
                     {selected.ocrStatus==='processing' ? (
                       <div className="flex items-center gap-2 p-4 rounded-lg bg-surface-50 border border-surface-200">
@@ -1144,10 +1358,10 @@ function ScreenLibrary() {
                       />
                     ) : (
                       <div className="p-4 rounded-lg bg-surface-50 border border-surface-200 text-sm text-surface-400 text-center">
-                        {selected.ocrStatus==='done' ? 'No text could be extracted from this image.' : 'Text extraction pending. It will start automatically.'}
+                        {selected.ocrStatus==='done' ? 'No text could be extracted.' : 'Text extraction pending.'}
                       </div>
                     )}
-                    {selected.extractedText && <p className="text-[10px] text-surface-400 mt-1">You can edit the extracted text above to correct OCR errors, then analysis updates live.</p>}
+                    {selected.extractedText && <p className="text-[10px] text-surface-400 mt-1">You can edit the text above to correct any issues. Analysis updates live.</p>}
                   </div>
 
                   {/* Analysis results */}
