@@ -183,14 +183,51 @@ function parseFigmaUrl(url) {
   return { fileKey, nodeId };
 }
 
-function extractTextFromFigmaNodes(node) {
+// Patterns to skip: device chrome, keyboards, timestamps, long hashes, noise
+const FIGMA_SKIP_PATTERNS = [
+  /^[\d]{1,2}:\d{2}$/, // status bar time like "9:41"
+  /^[A-Z]{2,4}$/, // keyboard keys like "ABC", "DEF", "GHI", "PQRS"
+  /^[0-9]$/, // single digit keyboard numbers
+  /^[\+\#\*]$/, // special keyboard chars
+  /^(return|space|shift|delete|emoji|globe|dictation)$/i, // keyboard labels
+  /^(Search|Siri|Aa|URL|\.com|Go)$/i, // common iOS keyboard/browser chrome
+  /^[\u2800-\u28FF]+$/, // braille patterns (used in some UI)
+  /^[A-Fa-f0-9]{20,}$/, // long hex hashes (blockchain addresses, etc)
+  /^T[A-Za-z0-9]{30,}$/, // TRON-style addresses
+  /^0x[A-Fa-f0-9]{10,}$/, // ETH addresses
+  /^(bc1|tb1)[a-z0-9]{20,}$/i, // BTC addresses
+];
+
+function shouldSkipFigmaText(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  if (trimmed.length <= 1 && /[^a-zA-Z0-9]/.test(trimmed)) return true; // single symbol
+  return FIGMA_SKIP_PATTERNS.some(re => re.test(trimmed));
+}
+
+function extractTextFromFigmaNodes(node, parentName) {
   const texts = [];
+  // Skip invisible nodes
+  if (node.visible === false) return texts;
+  // Skip nodes with very low opacity
+  if (node.opacity !== undefined && node.opacity < 0.01) return texts;
+
+  // Detect and skip common device chrome containers by name
+  const name = (node.name || '').toLowerCase();
+  const chromeNames = ['status bar', 'statusbar', 'status-bar', 'keyboard', 'home indicator',
+    'navigation bar', 'navbar', 'nav bar', 'system', 'notch', 'dynamic island',
+    'safe area', 'tab bar', 'tabbar', 'bottom bar', 'top bar', 'device frame',
+    'phone frame', 'iphone', 'android frame', 'mockup'];
+  if (chromeNames.some(cn => name.includes(cn))) return texts;
+
   if (node.type === 'TEXT' && node.characters) {
-    texts.push(node.characters);
+    if (!shouldSkipFigmaText(node.characters)) {
+      texts.push(node.characters);
+    }
   }
   if (node.children) {
     for (const child of node.children) {
-      texts.push(...extractTextFromFigmaNodes(child));
+      texts.push(...extractTextFromFigmaNodes(child, node.name));
     }
   }
   return texts;
@@ -1028,7 +1065,10 @@ function ScreenLibrary() {
         if (found) { targetNode = found; nodeName = found.name || nodeName; }
       }
       const textParts = extractTextFromFigmaNodes(targetNode);
-      const extractedText = textParts.join('\n');
+      // Deduplicate while preserving order
+      const seen = new Set();
+      const uniqueParts = textParts.filter(t => { const k = t.trim(); if (seen.has(k)) return false; seen.add(k); return true; });
+      const extractedText = uniqueParts.join('\n');
 
       // 3. Get thumbnail
       const thumbNodeId = parsed.nodeId || (data.document.children?.[0]?.id);
