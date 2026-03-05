@@ -176,6 +176,31 @@ function analyzeExtractedText(text, context) {
   if (!text || !text.trim()) return { issues:[], score:null, detectedSituation:null, advice:[] };
   const frameName = context?.frameName || '';
   const segments = context?.textSegments || null; // [{text, source}] for location tracking
+
+  // ── Pre-processing: strip noise lines before analysis ──
+  // This catches device chrome, keyboard keys, dial pad, status bar, etc.
+  // even if they slipped through extraction or come from cached data
+  const cleanedLines = text.split('\n').filter(line => {
+    const t = line.trim();
+    if (!t) return false;
+    // Check individual noise tokens
+    if (shouldSkipFigmaText(t)) return false;
+    // Check compound noise (more than half the tokens are noise)
+    const tokens = t.split(/\s+/).filter(Boolean);
+    if (tokens.length >= 3) {
+      let noise = 0;
+      for (const tok of tokens) { if (shouldSkipFigmaText(tok)) noise++; }
+      if (noise / tokens.length > 0.4) return false;
+    }
+    // Detect dial-pad / T9 keyboard sequences: "1 ABC 2 DEF 3 GHI..."
+    if (/(\d\s+[A-Z]{2,4}\s*){3,}/.test(t)) return false;
+    // Detect status bar + keyboard combined: starts with numbers and short uppercase groups
+    if (/^\d{3,}\s+[A-Z]{2,4}\s+\d{1,2}:\d{2}/.test(t)) return false;
+    return true;
+  });
+  text = cleanedLines.join('\n');
+  if (!text.trim()) return { issues:[], score:100, detectedSituation:null, advice:[] };
+
   const issues = [];
 
   // Helper: find which segment a matched string belongs to
@@ -1177,6 +1202,19 @@ function ScreenLibrary() {
   const [figmaUrl, setFigmaUrl] = useState('');
   const [figmaLoading, setFigmaLoading] = useState(false);
   const [figmaError, setFigmaError] = useState('');
+
+  // Re-analyze on open — ensures cached screens get fresh analysis with latest cleaning logic
+  useEffect(() => {
+    if (selected && selected.extractedText) {
+      const { issues, score, detectedSituation, advice } = analyzeExtractedText(selected.extractedText, { frameName:selected.name, textSegments:selected.textSegments||null });
+      // Only update if results actually changed (avoid infinite loop)
+      if (JSON.stringify(issues) !== JSON.stringify(selected.analysis)) {
+        const updates = { analysis:issues, analysisScore:score, detectedSituation:detectedSituation?.situation||null, advice };
+        setScreens(prev => { const next=prev.map(s => s.id===selected.id ? {...s,...updates} : s); saveScreens(next); return next; });
+        setSelected(s => s ? {...s,...updates} : s);
+      }
+    }
+  }, [selected?.id]);
 
   // Persist helper
   const updateScreenData = (id, updates) => {
