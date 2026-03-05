@@ -137,10 +137,47 @@ function saveScreens(s){ localStorage.setItem(SCREEN_KEY, JSON.stringify(s)) }
 function loadSessions(){ try{ return JSON.parse(localStorage.getItem(SESSION_KEY)||'[]') }catch{ return [] } }
 function saveSessions(s){ localStorage.setItem(SESSION_KEY, JSON.stringify(s)) }
 
-// Run content analysis on extracted text
-function analyzeExtractedText(text) {
-  if (!text || !text.trim()) return { issues:[], score:null };
+// Auto-detect content situation from text content and optional frame name
+function detectSituation(text, frameName) {
+  const t = (text||'').toLowerCase();
+  const f = (frameName||'').toLowerCase();
+  const combined = t + ' ' + f;
+
+  const signals = [
+    { situation:'Error messages', score:0, keywords:['error','failed','fail','couldn\'t','unable','went wrong','try again','retry','oops','problem','issue','timeout','expired','invalid','denied','rejected'], frameHints:['error','fail','alert','warning'] },
+    { situation:'Empty states', score:0, keywords:['no data','nothing to','no results','no items','no transactions','get started','start trading','empty','not found','no activity','no history'], frameHints:['empty','blank','zero','no data','placeholder'] },
+    { situation:'Success messages', score:0, keywords:['success','congrat','completed','confirmed','done','approved','verified','welcome','you\'ve','well done'], frameHints:['success','confirm','complete','done'] },
+    { situation:'Push notifications', score:0, keywords:[], frameHints:['push','notification','notif','alert push'] },
+    { situation:'Banners', score:0, keywords:[], frameHints:['banner','promo','announcement','ribbon'] },
+    { situation:'Emails', score:0, keywords:['subject:','unsubscribe','view in browser','email preferences'], frameHints:['email','newsletter','mail'] },
+    { situation:'Text messages (SMS)', score:0, keywords:['verification code','otp','sms'], frameHints:['sms','text message','otp'] },
+    { situation:'Tooltips', score:0, keywords:[], frameHints:['tooltip','popover','hint','info tip'] },
+    { situation:'Marketing content', score:0, keywords:['exclusive','limited time','sign up','join','unlock','discover','explore','earn','reward','bonus','offer','promotion','campaign'], frameHints:['marketing','promo','campaign','landing','hero','cta','onboard'] },
+    { situation:'Headers & subheaders', score:0, keywords:[], frameHints:['header','hero','heading','title section'] },
+    { situation:'UI references', score:0, keywords:['go to','select','navigate','open the','in the menu'], frameHints:['instruction','how to','guide','tutorial','help'] },
+    { situation:'Enthusiastic expressions', score:0, keywords:['congrats!','awesome','amazing','great job','well done','you did it'], frameHints:[] },
+  ];
+
+  for (const s of signals) {
+    for (const kw of s.keywords) { if (t.includes(kw)) s.score += 2; }
+    for (const fh of s.frameHints) { if (f.includes(fh)) s.score += 5; } // frame name is strong signal
+  }
+
+  const best = signals.filter(s=>s.score>0).sort((a,b)=>b.score-a.score);
+  if (best.length > 0 && best[0].score >= 2) {
+    const match = toneFramework.find(tf=>tf.situation===best[0].situation);
+    return match || null;
+  }
+  return null;
+}
+
+// Run content analysis on extracted text with optional context
+function analyzeExtractedText(text, context) {
+  if (!text || !text.trim()) return { issues:[], score:null, detectedSituation:null, advice:[] };
+  const frameName = context?.frameName || '';
   const issues = [];
+
+  // 1. General checker rules
   for (const rule of checkerRules) {
     const re = new RegExp(rule.re.source, rule.re.flags);
     let m;
@@ -148,14 +185,66 @@ function analyzeExtractedText(text) {
       issues.push({ ...rule, matchText:m[0], index:m.index });
     }
   }
+
+  // 2. Long sentence check
   text.split(/[.!?]+/).filter(s=>s.trim()).forEach(s => {
     const wc = s.trim().split(/\s+/).length;
     if (wc > 25) issues.push({ id:'long', name:'Long sentence', sev:'info', cat:'Readability', msg:`${wc} words. Aim for under 20 for a 5th grade level.`, sug:'Break into shorter sentences.', matchText:s.trim().substring(0,60)+(s.trim().length>60?'...':''), index:text.indexOf(s.trim()) });
   });
+
+  // 3. Auto-detect situation and run context-specific checks
+  const detectedSituation = detectSituation(text, frameName);
+  if (detectedSituation) {
+    const sitName = detectedSituation.situation;
+    const sitIssues = runSituationChecks(text, sitName);
+    for (const si of sitIssues) {
+      si.index = si.index || 0;
+      issues.push(si);
+    }
+  }
+
   issues.sort((a,b)=>a.index-b.index);
-  const ec=issues.filter(i=>i.sev==='error').length, wc2=issues.filter(i=>i.sev==='warning').length, ic=issues.filter(i=>i.sev==='info').length;
-  const score = Math.max(0, 100 - ec*10 - wc2*5 - ic*2);
-  return { issues, score };
+
+  // 4. Context-aware scoring
+  const ec = issues.filter(i=>i.sev==='error').length;
+  const wc2 = issues.filter(i=>i.sev==='warning').length;
+  const ic = issues.filter(i=>i.sev==='info').length;
+  // Situation-specific issues weigh more (they're more relevant)
+  const sitIssueCount = issues.filter(i=>i.cat==='Character limit'||i.cat==='Tone'||i.cat==='Terminology'||i.cat==='Formatting').length;
+  const baseScore = 100 - ec*10 - wc2*5 - ic*2 - sitIssueCount*3;
+  const score = Math.max(0, Math.min(100, baseScore));
+
+  // 5. Build actionable advice based on detected context
+  const advice = [];
+  if (detectedSituation) {
+    advice.push({ type:'context', msg:`Detected as: ${detectedSituation.situation}`, detail:detectedSituation.desc });
+    advice.push({ type:'tones', msg:'Recommended tones', tones:detectedSituation.tones });
+    // Add specific actionable tips
+    if (detectedSituation.situation==='Error messages') {
+      if (!/\b(refresh|retry|try again|check|contact|update|go to)\b/i.test(text)) advice.push({ type:'action', msg:'Add a recovery action', detail:'Tell the user what they can do next. Example: "Refresh the page" or "Check your connection."' });
+      if (/\b(we|our)\s+(failed|couldn|could not|were unable)/i.test(text)) advice.push({ type:'action', msg:'Don\'t blame OKX', detail:'Rewrite to focus on the situation, not who caused it. Instead of "We couldn\'t load", try "Failed to load."' });
+    }
+    if (detectedSituation.situation==='Empty states') {
+      if (!/\b(start|begin|try|add|create|explore|get started|learn|deposit|trade)\b/i.test(text)) advice.push({ type:'action', msg:'Add a call to action', detail:'Guide users on what to do. Example: "Start trading to see your history here."' });
+    }
+    if (detectedSituation.situation==='Marketing content') {
+      if (!/\b(you|your)\b/i.test(text) && !/\b(we|our)\b/i.test(text)) advice.push({ type:'action', msg:'Use first or second person', detail:'Address the reader directly with "you/your" or use "we/our" for brand voice.' });
+    }
+    if (detectedSituation.situation==='Push notifications') {
+      if (text.length > 200) advice.push({ type:'action', msg:'Shorten the message', detail:`Currently ${text.length} chars. Keep title under 50 and body under 150 characters.` });
+    }
+    if (detectedSituation.situation==='Banners') {
+      if (text.length > 103) advice.push({ type:'action', msg:'Trim to 103 characters', detail:`Currently ${text.length} chars. Banners should be brief and catchy.` });
+    }
+    // Do/Don't reference
+    advice.push({ type:'example', doEx:detectedSituation.doEx, dontEx:detectedSituation.dontEx });
+  } else {
+    // No situation detected — give general advice
+    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount > 30) advice.push({ type:'action', msg:'Consider breaking this into shorter sections', detail:'OKX guidelines recommend keeping content scannable. Use headers, bullets, or shorter paragraphs.' });
+  }
+
+  return { issues, score, detectedSituation, advice };
 }
 
 // OCR a single image and return extracted text
@@ -569,6 +658,28 @@ function Dashboard({ setPage }) {
                   ) : (
                     <div className="text-center py-8 text-surface-400">
                       <p className="text-sm">{reviewScreen.ocrStatus==='processing' ? 'Analysis in progress...' : 'No analysis available yet.'}</p>
+                    </div>
+                  )}
+                  {reviewScreen.advice && reviewScreen.advice.length > 0 && (
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-2 block">Contextual advice</label>
+                      <div className="space-y-2">
+                        {reviewScreen.advice.filter(a=>a.type==='context'||a.type==='action').map((a,idx) => {
+                          if (a.type==='context') return (
+                            <div key={idx} className="rounded-lg border border-indigo-200 bg-indigo-50 p-2.5">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-600 text-white mb-1">{a.msg.replace('Detected as: ','')}</span>
+                              <p className="text-xs text-indigo-700">{a.detail}</p>
+                            </div>
+                          );
+                          if (a.type==='action') return (
+                            <div key={idx} className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 flex items-start gap-2">
+                              <Icon name="alertTriangle" size={12} className="text-amber-600 mt-0.5 shrink-0"/>
+                              <div><p className="text-xs font-medium text-amber-800">{a.msg}</p><p className="text-[11px] text-amber-700 mt-0.5">{a.detail}</p></div>
+                            </div>
+                          );
+                          return null;
+                        })}
+                      </div>
                     </div>
                   )}
                   <button onClick={()=>{setReviewScreen(null);setPage('screens');}} className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors">
@@ -1033,8 +1144,8 @@ function ScreenLibrary() {
     setOcrQueue(q => [...q, screen.id]);
     updateScreenData(screen.id, { ocrStatus:'processing' });
     const extractedText = await ocrImage(screen.dataUrl);
-    const { issues, score } = analyzeExtractedText(extractedText);
-    const analysisData = { extractedText, analysis:issues, analysisScore:score, analyzedAt:new Date().toISOString(), ocrStatus:'done' };
+    const { issues, score, detectedSituation, advice } = analyzeExtractedText(extractedText, { frameName:screen.name });
+    const analysisData = { extractedText, analysis:issues, analysisScore:score, detectedSituation:detectedSituation?.situation||null, advice, analyzedAt:new Date().toISOString(), ocrStatus:'done' };
     setScreens(prev => {
       const next = prev.map(s => s.id===screen.id ? {...s,...analysisData} : s);
       saveScreens(next);
@@ -1078,8 +1189,8 @@ function ScreenLibrary() {
         if (img) thumbnailUrl = img;
       }
 
-      // 4. Analyze
-      const { issues, score } = analyzeExtractedText(extractedText);
+      // 4. Analyze with frame name context
+      const { issues, score, detectedSituation, advice } = analyzeExtractedText(extractedText, { frameName:nodeName });
 
       // 5. Create screen + session
       const screenId = Date.now()+'-'+Math.random().toString(36).substr(2,6);
@@ -1087,7 +1198,7 @@ function ScreenLibrary() {
       const screen = {
         id:screenId, name:`${fileName} — ${nodeName}`, dataUrl:thumbnailUrl||'', tags:[], notes:'',
         createdAt:new Date().toISOString(), sessionId,
-        extractedText, analysis:issues, analysisScore:score, analyzedAt:new Date().toISOString(),
+        extractedText, analysis:issues, analysisScore:score, detectedSituation:detectedSituation?.situation||null, advice, analyzedAt:new Date().toISOString(),
         ocrStatus:'done', source:'figma', figmaUrl:figmaUrl
       };
       const session = { id:sessionId, createdAt:new Date().toISOString(), screenIds:[screenId], name:`Figma: ${nodeName}`, fileCount:1 };
@@ -1140,8 +1251,8 @@ function ScreenLibrary() {
             (async () => {
               setOcrQueue(q => [...q, s.id]);
               const extractedText = await ocrImage(s.dataUrl);
-              const { issues, score } = analyzeExtractedText(extractedText);
-              const analysisData = { extractedText, analysis:issues, analysisScore:score, analyzedAt:new Date().toISOString(), ocrStatus:'done' };
+              const { issues, score, detectedSituation, advice } = analyzeExtractedText(extractedText, { frameName:s.name });
+              const analysisData = { extractedText, analysis:issues, analysisScore:score, detectedSituation:detectedSituation?.situation||null, advice, analyzedAt:new Date().toISOString(), ocrStatus:'done' };
               setScreens(prev => { const next=prev.map(x => x.id===s.id ? {...x,...analysisData} : x); saveScreens(next); return next; });
               setSelected(sel => sel?.id===s.id ? {...sel,...analysisData} : sel);
               setOcrQueue(q => q.filter(qid => qid!==s.id));
@@ -1293,6 +1404,7 @@ function ScreenLibrary() {
                   <p className="text-xs font-medium text-surface-700 truncate">{s.name}</p>
                   <div className="flex items-center gap-1.5 mt-1">
                     {s.analysis && <span className="text-[10px] text-surface-400">{s.analysis.length} issue{s.analysis.length!==1?'s':''}</span>}
+                    {s.detectedSituation && <span className="text-[10px] text-indigo-600 font-medium">{s.detectedSituation}</span>}
                     {s.tags.length>0 && s.tags.slice(0,2).map(t=>(<span key={t} className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-surface-100 text-surface-700">{t}</span>))}
                   </div>
                 </div>
@@ -1338,6 +1450,7 @@ function ScreenLibrary() {
                 {selected.source==='figma' && <Icon name="figma" size={16} className="text-purple-600 shrink-0"/>}
                 <h3 className="font-semibold truncate">{selected.name}</h3>
                 <ScoreBadge score={selected.analysisScore} size="md"/>
+                {selected.detectedSituation && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-700 border border-indigo-200 shrink-0">{selected.detectedSituation}</span>}
               </div>
               <button onClick={()=>setSelected(null)} className="text-surface-400 hover:text-surface-600 shrink-0"><Icon name="x" size={20}/></button>
             </div>
@@ -1391,8 +1504,8 @@ function ScreenLibrary() {
                         value={selected.extractedText}
                         onChange={e => {
                           const newText = e.target.value;
-                          const { issues, score } = analyzeExtractedText(newText);
-                          updateScreenData(selected.id, { extractedText:newText, analysis:issues, analysisScore:score });
+                          const { issues, score, detectedSituation, advice } = analyzeExtractedText(newText, { frameName:selected.name });
+                          updateScreenData(selected.id, { extractedText:newText, analysis:issues, analysisScore:score, detectedSituation:detectedSituation?.situation||null, advice });
                         }}
                         className="w-full px-3 py-2 rounded-lg border border-surface-200 bg-surface-50 text-sm font-mono leading-relaxed min-h-[80px] resize-y focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
@@ -1442,6 +1555,62 @@ function ScreenLibrary() {
                       <div><p className="text-sm font-medium text-emerald-800">No issues found</p><p className="text-xs text-emerald-600">The content in this screen follows OKX guidelines.</p></div>
                     </div>
                   ) : null}
+
+                  {/* Contextual advice panel */}
+                  {selected.advice && selected.advice.length > 0 && (
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-2 block">
+                        Contextual advice
+                      </label>
+                      <div className="space-y-2">
+                        {selected.advice.map((a,idx) => {
+                          if (a.type==='context') return (
+                            <div key={idx} className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-600 text-white">{a.msg.replace('Detected as: ','')}</span>
+                              </div>
+                              <p className="text-xs text-indigo-700">{a.detail}</p>
+                            </div>
+                          );
+                          if (a.type==='tones') return (
+                            <div key={idx} className="rounded-lg border border-surface-200 bg-surface-50 p-3">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 mb-1.5">Recommended tones</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {a.tones.map((t,i) => <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-brand-100 text-brand-700 border border-brand-200">{t}</span>)}
+                              </div>
+                            </div>
+                          );
+                          if (a.type==='action') return (
+                            <div key={idx} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                              <div className="flex items-start gap-2">
+                                <Icon name="alertTriangle" size={14} className="text-amber-600 mt-0.5 shrink-0"/>
+                                <div>
+                                  <p className="text-xs font-medium text-amber-800">{a.msg}</p>
+                                  <p className="text-xs text-amber-700 mt-0.5">{a.detail}</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                          if (a.type==='example') return (
+                            <div key={idx} className="rounded-lg border border-surface-200 bg-surface-50 p-3">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-surface-400 mb-2">Reference examples</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2">
+                                  <p className="text-[10px] font-semibold text-emerald-700 mb-1 flex items-center gap-1"><Icon name="checkCircle" size={10}/>Do</p>
+                                  <p className="text-[11px] text-emerald-800 italic">"{a.doEx}"</p>
+                                </div>
+                                <div className="rounded-md border border-red-200 bg-red-50 p-2">
+                                  <p className="text-[10px] font-semibold text-red-700 mb-1 flex items-center gap-1"><Icon name="x" size={10}/>Don't</p>
+                                  <p className="text-[11px] text-red-800 italic">"{a.dontEx}"</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                          return null;
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
