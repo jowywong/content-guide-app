@@ -309,6 +309,22 @@ function shouldSkipFigmaText(text) {
   return FIGMA_SKIP_PATTERNS.some(re => re.test(trimmed));
 }
 
+// Detect if a text string is mostly noise (keyboard keys, status bar, dial pad, etc.)
+// This catches compound text nodes where multiple noise items are in one string
+function isNoisyText(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  // Split into tokens by whitespace or newline
+  const tokens = trimmed.split(/[\s\n]+/).filter(Boolean);
+  if (tokens.length < 2) return false; // Single-token strings handled by shouldSkipFigmaText
+  let noiseCount = 0;
+  for (const token of tokens) {
+    if (shouldSkipFigmaText(token)) noiseCount++;
+  }
+  // If more than half the tokens are noise, the whole string is noise
+  return noiseCount / tokens.length > 0.5;
+}
+
 function extractTextFromFigmaNodes(node, parentName, nearestFrame) {
   const texts = [];
   // Skip invisible nodes
@@ -329,8 +345,22 @@ function extractTextFromFigmaNodes(node, parentName, nearestFrame) {
   const currentFrame = frameTypes.includes(node.type) ? node.name : nearestFrame;
 
   if (node.type === 'TEXT' && node.characters) {
-    if (!shouldSkipFigmaText(node.characters)) {
-      texts.push({ text: node.characters, source: currentFrame || parentName || 'Screen' });
+    const src = currentFrame || parentName || 'Screen';
+    // Split multi-line text nodes so each line is checked independently
+    const lines = node.characters.split(/\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length <= 1) {
+      // Single-line text node: check as whole
+      const full = node.characters.trim();
+      if (full && !shouldSkipFigmaText(full) && !isNoisyText(full)) {
+        texts.push({ text: full, source: src });
+      }
+    } else {
+      // Multi-line: check each line independently, skip noise lines
+      for (const line of lines) {
+        if (!shouldSkipFigmaText(line) && !isNoisyText(line)) {
+          texts.push({ text: line, source: src });
+        }
+      }
     }
   }
   if (node.children) {
