@@ -202,6 +202,7 @@ function analyzeExtractedText(text, context) {
   if (!text.trim()) return { issues:[], score:100, detectedSituation:null, advice:[] };
 
   const issues = [];
+  const lines = text.split('\n').filter(l => l.trim());
 
   // Helper: find which segment a matched string belongs to
   function findLocation(matchText) {
@@ -213,19 +214,35 @@ function analyzeExtractedText(text, context) {
     return null;
   }
 
+  // Helper: get the full line surrounding a match position for context
+  function getContextLine(index) {
+    for (const line of lines) {
+      const pos = text.indexOf(line);
+      if (index >= pos && index < pos + line.length) return line.trim();
+    }
+    // Fallback: grab surrounding text
+    const start = Math.max(0, text.lastIndexOf('\n', index) + 1);
+    const end = text.indexOf('\n', index);
+    return text.substring(start, end === -1 ? text.length : end).trim();
+  }
+
   // 1. General checker rules
   for (const rule of checkerRules) {
     const re = new RegExp(rule.re.source, rule.re.flags);
     let m;
     while ((m = re.exec(text)) !== null) {
-      issues.push({ ...rule, matchText:m[0], index:m.index, location:findLocation(m[0]) });
+      const contextLine = getContextLine(m.index);
+      issues.push({ ...rule, matchText:m[0], contextLine, index:m.index, location:findLocation(m[0]) || findLocation(contextLine) });
     }
   }
 
   // 2. Long sentence check — split on newlines too so each extracted text node is checked individually
   text.split(/[.!?\n]+/).filter(s=>s.trim()).forEach(s => {
     const wc = s.trim().split(/\s+/).length;
-    if (wc > 25) issues.push({ id:'long', name:'Long sentence', sev:'info', cat:'Readability', msg:`${wc} words. Aim for under 20 for a 5th grade level.`, sug:'Break into shorter sentences.', matchText:s.trim().substring(0,60)+(s.trim().length>60?'...':''), index:text.indexOf(s.trim()), location:findLocation(s.trim()) });
+    if (wc > 25) {
+      const snippet = s.trim().substring(0,80)+(s.trim().length>80?'...':'');
+      issues.push({ id:'long', name:'Long sentence', sev:'info', cat:'Readability', msg:`${wc} words. Aim for under 20 for a 5th grade level.`, sug:'Break into shorter sentences.', matchText:snippet, contextLine:s.trim(), index:text.indexOf(s.trim()), location:findLocation(s.trim()) });
+    }
   });
 
   // 3. Auto-detect situation and run context-specific checks
@@ -250,34 +267,52 @@ function analyzeExtractedText(text, context) {
   const baseScore = 100 - ec*10 - wc2*5 - ic*2 - sitIssueCount*3;
   const score = Math.max(0, Math.min(100, baseScore));
 
-  // 5. Build actionable advice based on detected context
+  // 5. Build actionable advice referencing SPECIFIC content from the screen
   const advice = [];
+  // Find the longest / most prominent content lines to reference in advice
+  const sortedLines = [...lines].sort((a,b) => b.length - a.length);
+  const topContent = sortedLines.slice(0, 3).map(l => l.trim()).filter(Boolean);
+
   if (detectedSituation) {
     advice.push({ type:'context', msg:`Detected as: ${detectedSituation.situation}`, detail:detectedSituation.desc });
     advice.push({ type:'tones', msg:'Recommended tones', tones:detectedSituation.tones });
-    // Add specific actionable tips
+    // Add specific actionable tips that reference actual content
     if (detectedSituation.situation==='Error messages') {
-      if (!/\b(refresh|retry|try again|check|contact|update|go to)\b/i.test(text)) advice.push({ type:'action', msg:'Add a recovery action', detail:'Tell the user what they can do next. Example: "Refresh the page" or "Check your connection."' });
-      if (/\b(we|our)\s+(failed|couldn|could not|were unable)/i.test(text)) advice.push({ type:'action', msg:'Don\'t blame OKX', detail:'Rewrite to focus on the situation, not who caused it. Instead of "We couldn\'t load", try "Failed to load."' });
+      if (!/\b(refresh|retry|try again|check|contact|update|go to)\b/i.test(text)) {
+        const errorLine = lines.find(l => /\b(error|fail|unable|couldn|problem|wrong|denied|invalid)\b/i.test(l)) || topContent[0] || '';
+        advice.push({ type:'action', msg:'Add a recovery action', detail:`The text "${errorLine.substring(0,60)}${errorLine.length>60?'...':''}" tells the user what went wrong but not what to do next. Add a next step like "Refresh the page" or "Check your connection."`, contentRef:errorLine });
+      }
+      const blameMatch = text.match(/\b(we|our)\s+(failed|couldn|could not|were unable)[^.!\n]*/i);
+      if (blameMatch) {
+        advice.push({ type:'action', msg:'Don\'t blame OKX', detail:`"${blameMatch[0].trim()}" puts blame on OKX. Rewrite to focus on the situation: instead of "We couldn\'t load", try "Failed to load."`, contentRef:blameMatch[0] });
+      }
     }
     if (detectedSituation.situation==='Empty states') {
-      if (!/\b(start|begin|try|add|create|explore|get started|learn|deposit|trade)\b/i.test(text)) advice.push({ type:'action', msg:'Add a call to action', detail:'Guide users on what to do. Example: "Start trading to see your history here."' });
+      if (!/\b(start|begin|try|add|create|explore|get started|learn|deposit|trade)\b/i.test(text)) {
+        const emptyLine = lines.find(l => /\b(no |nothing|empty|yet)\b/i.test(l)) || topContent[0] || '';
+        advice.push({ type:'action', msg:'Add a call to action', detail:`"${emptyLine.substring(0,60)}${emptyLine.length>60?'...':''}" describes the empty state but doesn't guide the user. Add a CTA like "Start trading to see your history here."`, contentRef:emptyLine });
+      }
     }
     if (detectedSituation.situation==='Marketing content') {
-      if (!/\b(you|your)\b/i.test(text) && !/\b(we|our)\b/i.test(text)) advice.push({ type:'action', msg:'Use first or second person', detail:'Address the reader directly with "you/your" or use "we/our" for brand voice.' });
+      if (!/\b(you|your)\b/i.test(text) && !/\b(we|our)\b/i.test(text)) {
+        advice.push({ type:'action', msg:'Use first or second person', detail:`"${(topContent[0]||'').substring(0,60)}${(topContent[0]||'').length>60?'...':''}" doesn't address the reader directly. Use "you/your" or "we/our" for a more personal brand voice.`, contentRef:topContent[0] });
+      }
     }
     if (detectedSituation.situation==='Push notifications') {
-      if (text.length > 200) advice.push({ type:'action', msg:'Shorten the message', detail:`Currently ${text.length} chars. Keep title under 50 and body under 150 characters.` });
+      if (text.length > 200) advice.push({ type:'action', msg:'Shorten the message', detail:`Currently ${text.length} chars across the notification. Keep title under 50 and body under 150 characters. The longest line is: "${(topContent[0]||'').substring(0,60)}..."`, contentRef:topContent[0] });
     }
     if (detectedSituation.situation==='Banners') {
-      if (text.length > 103) advice.push({ type:'action', msg:'Trim to 103 characters', detail:`Currently ${text.length} chars. Banners should be brief and catchy.` });
+      if (text.length > 103) advice.push({ type:'action', msg:'Trim to 103 characters', detail:`Currently ${text.length} chars. The line "${(topContent[0]||'').substring(0,50)}..." may need trimming. Banners should be brief and catchy.`, contentRef:topContent[0] });
     }
     // Do/Don't reference
     advice.push({ type:'example', doEx:detectedSituation.doEx, dontEx:detectedSituation.dontEx });
   } else {
-    // No situation detected — give general advice
+    // No situation detected — give content-specific advice
     const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-    if (wordCount > 30) advice.push({ type:'action', msg:'Consider breaking this into shorter sections', detail:'OKX guidelines recommend keeping content scannable. Use headers, bullets, or shorter paragraphs.' });
+    if (wordCount > 30) {
+      const longestLines = topContent.slice(0, 2).map(l => `"${l.substring(0,50)}${l.length>50?'...':''}"`).join(' and ');
+      advice.push({ type:'action', msg:'Consider breaking this into shorter sections', detail:`Content like ${longestLines} could be split up. OKX guidelines recommend keeping content scannable — use headers, bullets, or shorter paragraphs.` });
+    }
   }
 
   return { issues, score, detectedSituation, advice };
@@ -708,6 +743,9 @@ function Dashboard({ setPage }) {
                       <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                         {reviewScreen.analysis.map((issue,idx)=>{
                           const c = sevConfig[issue.sev];
+                          const ctx = issue.contextLine || '';
+                          const mt = issue.matchText || '';
+                          const hasHighlight = ctx && mt && ctx.toLowerCase().includes(mt.toLowerCase());
                           return (
                             <div key={idx} className={`rounded-lg border p-2.5 ${c.bg} ${c.border}`}>
                               <div className="flex items-start gap-2">
@@ -715,7 +753,10 @@ function Dashboard({ setPage }) {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap"><span className="text-xs font-medium">{issue.name}</span><span className="text-[10px] text-surface-400">{issue.cat}</span>{issue.location && <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0 rounded-full border border-indigo-200">📍 {issue.location}</span>}</div>
                                   <p className="text-xs text-surface-600 mt-0.5">{issue.msg}</p>
-                                  {issue.matchText && <p className="text-[10px] font-mono text-surface-500 mt-1 bg-white/60 rounded px-1.5 py-0.5 inline-block">"{issue.matchText}"</p>}
+                                  {hasHighlight ? (() => {
+                                    const i = ctx.toLowerCase().indexOf(mt.toLowerCase());
+                                    return <p className="text-[11px] text-surface-600 mt-1 bg-white/60 rounded px-2 py-1 border border-surface-100 leading-relaxed"><span className="text-surface-400">{ctx.substring(0,i)}</span><span className="font-semibold text-amber-700 bg-amber-100 px-0.5 rounded">{ctx.substring(i,i+mt.length)}</span><span className="text-surface-400">{ctx.substring(i+mt.length)}</span></p>;
+                                  })() : mt ? <p className="text-[10px] font-mono text-surface-500 mt-1 bg-white/60 rounded px-1.5 py-0.5 inline-block">"{mt}"</p> : null}
                                   {issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
                                 </div>
                               </div>
@@ -1642,6 +1683,29 @@ function ScreenLibrary() {
                       <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                         {selected.analysis.map((issue,idx)=>{
                           const c = sevConfig[issue.sev];
+                          // Build highlighted context: show the full line with the matched part highlighted
+                          const renderContext = () => {
+                            const ctx = issue.contextLine || '';
+                            const match = issue.matchText || '';
+                            if (!ctx && !match) return null;
+                            if (ctx && match && ctx.toLowerCase().includes(match.toLowerCase())) {
+                              const i = ctx.toLowerCase().indexOf(match.toLowerCase());
+                              const before = ctx.substring(0, i);
+                              const highlighted = ctx.substring(i, i + match.length);
+                              const after = ctx.substring(i + match.length);
+                              const truncBefore = before.length > 40 ? '...' + before.substring(before.length - 40) : before;
+                              const truncAfter = after.length > 40 ? after.substring(0, 40) + '...' : after;
+                              return (
+                                <p className="text-[11px] text-surface-600 mt-1.5 bg-white/60 rounded px-2 py-1 border border-surface-100 leading-relaxed">
+                                  <span className="text-surface-400">{truncBefore}</span>
+                                  <span className="font-semibold text-amber-700 bg-amber-100 px-0.5 rounded">{highlighted}</span>
+                                  <span className="text-surface-400">{truncAfter}</span>
+                                </p>
+                              );
+                            }
+                            // Fallback: show matchText if no context line
+                            return <p className="text-[11px] font-mono text-surface-500 mt-1.5 bg-white/60 rounded px-2 py-1 border border-surface-100">"{match || ctx}"</p>;
+                          };
                           return (
                             <div key={idx} className={`rounded-lg border p-2.5 ${c.bg} ${c.border}`}>
                               <div className="flex items-start gap-2">
@@ -1653,7 +1717,7 @@ function ScreenLibrary() {
                                     {issue.location && <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0 rounded-full border border-indigo-200">📍 {issue.location}</span>}
                                   </div>
                                   <p className="text-xs text-surface-600 mt-0.5">{issue.msg}</p>
-                                  {issue.matchText && <p className="text-[10px] font-mono text-surface-500 mt-1 bg-white/60 rounded px-1.5 py-0.5 inline-block">"{issue.matchText}"</p>}
+                                  {renderContext()}
                                   {issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
                                 </div>
                               </div>
