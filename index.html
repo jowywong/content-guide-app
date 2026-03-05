@@ -175,21 +175,32 @@ function detectSituation(text, frameName) {
 function analyzeExtractedText(text, context) {
   if (!text || !text.trim()) return { issues:[], score:null, detectedSituation:null, advice:[] };
   const frameName = context?.frameName || '';
+  const segments = context?.textSegments || null; // [{text, source}] for location tracking
   const issues = [];
+
+  // Helper: find which segment a matched string belongs to
+  function findLocation(matchText) {
+    if (!segments) return null;
+    const mt = (matchText||'').trim().toLowerCase();
+    for (const seg of segments) {
+      if (seg.text.toLowerCase().includes(mt)) return seg.source;
+    }
+    return null;
+  }
 
   // 1. General checker rules
   for (const rule of checkerRules) {
     const re = new RegExp(rule.re.source, rule.re.flags);
     let m;
     while ((m = re.exec(text)) !== null) {
-      issues.push({ ...rule, matchText:m[0], index:m.index });
+      issues.push({ ...rule, matchText:m[0], index:m.index, location:findLocation(m[0]) });
     }
   }
 
-  // 2. Long sentence check
-  text.split(/[.!?]+/).filter(s=>s.trim()).forEach(s => {
+  // 2. Long sentence check — split on newlines too so each extracted text node is checked individually
+  text.split(/[.!?\n]+/).filter(s=>s.trim()).forEach(s => {
     const wc = s.trim().split(/\s+/).length;
-    if (wc > 25) issues.push({ id:'long', name:'Long sentence', sev:'info', cat:'Readability', msg:`${wc} words. Aim for under 20 for a 5th grade level.`, sug:'Break into shorter sentences.', matchText:s.trim().substring(0,60)+(s.trim().length>60?'...':''), index:text.indexOf(s.trim()) });
+    if (wc > 25) issues.push({ id:'long', name:'Long sentence', sev:'info', cat:'Readability', msg:`${wc} words. Aim for under 20 for a 5th grade level.`, sug:'Break into shorter sentences.', matchText:s.trim().substring(0,60)+(s.trim().length>60?'...':''), index:text.indexOf(s.trim()), location:findLocation(s.trim()) });
   });
 
   // 3. Auto-detect situation and run context-specific checks
@@ -275,7 +286,7 @@ function parseFigmaUrl(url) {
 // Patterns to skip: device chrome, keyboards, timestamps, long hashes, noise
 const FIGMA_SKIP_PATTERNS = [
   /^[\d]{1,2}:\d{2}$/, // status bar time like "9:41"
-  /^[A-Z]{2,4}$/, // keyboard keys like "ABC", "DEF", "GHI", "PQRS"
+  /^[A-Z]{2,4}$/, // keyboard keys like "ABC", "DEF", "GHI", "PQRS", "TUV", "MNO"
   /^[0-9]$/, // single digit keyboard numbers
   /^[\+\#\*]$/, // special keyboard chars
   /^(return|space|shift|delete|emoji|globe|dictation)$/i, // keyboard labels
@@ -285,6 +296,10 @@ const FIGMA_SKIP_PATTERNS = [
   /^T[A-Za-z0-9]{30,}$/, // TRON-style addresses
   /^0x[A-Fa-f0-9]{10,}$/, // ETH addresses
   /^(bc1|tb1)[a-z0-9]{20,}$/i, // BTC addresses
+  /^MN[O0]$/i, // dial pad "MNO" variant
+  /^WXYZ$/i, // dial pad key
+  /^\d{4,6}$/, // signal strength / IDs in status bar (e.g. "504125")
+  /^(ETH|BTC|USDT|USDC|BNB|SOL|XRP|ADA|DOT|AVAX|MATIC|LTC|DOGE|SHIB|UNI|LINK)$/i, // lone ticker symbols (not meaningful as content)
 ];
 
 function shouldSkipFigmaText(text) {
@@ -294,7 +309,7 @@ function shouldSkipFigmaText(text) {
   return FIGMA_SKIP_PATTERNS.some(re => re.test(trimmed));
 }
 
-function extractTextFromFigmaNodes(node, parentName) {
+function extractTextFromFigmaNodes(node, parentName, nearestFrame) {
   const texts = [];
   // Skip invisible nodes
   if (node.visible === false) return texts;
@@ -306,17 +321,21 @@ function extractTextFromFigmaNodes(node, parentName) {
   const chromeNames = ['status bar', 'statusbar', 'status-bar', 'keyboard', 'home indicator',
     'navigation bar', 'navbar', 'nav bar', 'system', 'notch', 'dynamic island',
     'safe area', 'tab bar', 'tabbar', 'bottom bar', 'top bar', 'device frame',
-    'phone frame', 'iphone', 'android frame', 'mockup'];
+    'phone frame', 'iphone', 'android frame', 'mockup', 'dial pad', 'dialpad', 'numpad'];
   if (chromeNames.some(cn => name.includes(cn))) return texts;
+
+  // Track nearest frame/component ancestor as the source location
+  const frameTypes = ['FRAME', 'COMPONENT', 'COMPONENT_SET', 'SECTION'];
+  const currentFrame = frameTypes.includes(node.type) ? node.name : nearestFrame;
 
   if (node.type === 'TEXT' && node.characters) {
     if (!shouldSkipFigmaText(node.characters)) {
-      texts.push(node.characters);
+      texts.push({ text: node.characters, source: currentFrame || parentName || 'Screen' });
     }
   }
   if (node.children) {
     for (const child of node.children) {
-      texts.push(...extractTextFromFigmaNodes(child, node.name));
+      texts.push(...extractTextFromFigmaNodes(child, node.name, currentFrame));
     }
   }
   return texts;
@@ -639,7 +658,7 @@ function Dashboard({ setPage }) {
                               <div className="flex items-start gap-2">
                                 <Icon name={c.icon} size={14} className={`${c.color} mt-0.5 shrink-0`}/>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap"><span className="text-xs font-medium">{issue.name}</span><span className="text-[10px] text-surface-400">{issue.cat}</span></div>
+                                  <div className="flex items-center gap-2 flex-wrap"><span className="text-xs font-medium">{issue.name}</span><span className="text-[10px] text-surface-400">{issue.cat}</span>{issue.location && <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0 rounded-full border border-indigo-200">📍 {issue.location}</span>}</div>
                                   <p className="text-xs text-surface-600 mt-0.5">{issue.msg}</p>
                                   {issue.matchText && <p className="text-[10px] font-mono text-surface-500 mt-1 bg-white/60 rounded px-1.5 py-0.5 inline-block">"{issue.matchText}"</p>}
                                   {issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
@@ -1178,8 +1197,9 @@ function ScreenLibrary() {
       const textParts = extractTextFromFigmaNodes(targetNode);
       // Deduplicate while preserving order
       const seen = new Set();
-      const uniqueParts = textParts.filter(t => { const k = t.trim(); if (seen.has(k)) return false; seen.add(k); return true; });
-      const extractedText = uniqueParts.join('\n');
+      const uniqueParts = textParts.filter(t => { const k = t.text.trim(); if (seen.has(k)) return false; seen.add(k); return true; });
+      const extractedText = uniqueParts.map(t => t.text).join('\n');
+      const textSegments = uniqueParts.map(t => ({ text:t.text.trim(), source:t.source }));
 
       // 3. Get thumbnail
       const thumbNodeId = parsed.nodeId || (data.document.children?.[0]?.id);
@@ -1189,8 +1209,8 @@ function ScreenLibrary() {
         if (img) thumbnailUrl = img;
       }
 
-      // 4. Analyze with frame name context
-      const { issues, score, detectedSituation, advice } = analyzeExtractedText(extractedText, { frameName:nodeName });
+      // 4. Analyze with frame name context and segments for location tracking
+      const { issues, score, detectedSituation, advice } = analyzeExtractedText(extractedText, { frameName:nodeName, textSegments });
 
       // 5. Create screen + session
       const screenId = Date.now()+'-'+Math.random().toString(36).substr(2,6);
@@ -1198,7 +1218,7 @@ function ScreenLibrary() {
       const screen = {
         id:screenId, name:`${fileName} — ${nodeName}`, dataUrl:thumbnailUrl||'', tags:[], notes:'',
         createdAt:new Date().toISOString(), sessionId,
-        extractedText, analysis:issues, analysisScore:score, detectedSituation:detectedSituation?.situation||null, advice, analyzedAt:new Date().toISOString(),
+        extractedText, textSegments, analysis:issues, analysisScore:score, detectedSituation:detectedSituation?.situation||null, advice, analyzedAt:new Date().toISOString(),
         ocrStatus:'done', source:'figma', figmaUrl:figmaUrl
       };
       const session = { id:sessionId, createdAt:new Date().toISOString(), screenIds:[screenId], name:`Figma: ${nodeName}`, fileCount:1 };
@@ -1500,21 +1520,42 @@ function ScreenLibrary() {
                         <span className="text-sm text-surface-500">Extracting text from image...</span>
                       </div>
                     ) : selected.extractedText ? (
-                      <textarea
-                        value={selected.extractedText}
-                        onChange={e => {
-                          const newText = e.target.value;
-                          const { issues, score, detectedSituation, advice } = analyzeExtractedText(newText, { frameName:selected.name });
-                          updateScreenData(selected.id, { extractedText:newText, analysis:issues, analysisScore:score, detectedSituation:detectedSituation?.situation||null, advice });
-                        }}
-                        className="w-full px-3 py-2 rounded-lg border border-surface-200 bg-surface-50 text-sm font-mono leading-relaxed min-h-[80px] resize-y focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      />
+                      selected.textSegments && selected.textSegments.length > 0 ? (
+                        <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
+                          {(() => {
+                            // Group segments by source frame
+                            const grouped = {};
+                            selected.textSegments.forEach(seg => {
+                              if (!grouped[seg.source]) grouped[seg.source] = [];
+                              grouped[seg.source].push(seg.text);
+                            });
+                            return Object.entries(grouped).map(([source, texts], gi) => (
+                              <div key={gi} className="rounded-lg border border-surface-200 bg-surface-50 p-2">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0 rounded border border-indigo-200">{source}</span>
+                                </div>
+                                <p className="text-xs text-surface-700 leading-relaxed">{texts.join(' · ')}</p>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      ) : (
+                        <textarea
+                          value={selected.extractedText}
+                          onChange={e => {
+                            const newText = e.target.value;
+                            const { issues, score, detectedSituation, advice } = analyzeExtractedText(newText, { frameName:selected.name });
+                            updateScreenData(selected.id, { extractedText:newText, analysis:issues, analysisScore:score, detectedSituation:detectedSituation?.situation||null, advice });
+                          }}
+                          className="w-full px-3 py-2 rounded-lg border border-surface-200 bg-surface-50 text-sm font-mono leading-relaxed min-h-[80px] resize-y focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      )
                     ) : (
                       <div className="p-4 rounded-lg bg-surface-50 border border-surface-200 text-sm text-surface-400 text-center">
                         {selected.ocrStatus==='done' ? 'No text could be extracted.' : 'Text extraction pending.'}
                       </div>
                     )}
-                    {selected.extractedText && <p className="text-[10px] text-surface-400 mt-1">You can edit the text above to correct any issues. Analysis updates live.</p>}
+                    {selected.extractedText && !selected.textSegments && <p className="text-[10px] text-surface-400 mt-1">You can edit the text above to correct any issues. Analysis updates live.</p>}
                   </div>
 
                   {/* Analysis results */}
@@ -1538,7 +1579,11 @@ function ScreenLibrary() {
                               <div className="flex items-start gap-2">
                                 <Icon name={c.icon} size={14} className={`${c.color} mt-0.5 shrink-0`}/>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap"><span className="text-xs font-medium">{issue.name}</span><span className="text-[10px] text-surface-400">{issue.cat}</span></div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-medium">{issue.name}</span>
+                                    <span className="text-[10px] text-surface-400">{issue.cat}</span>
+                                    {issue.location && <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0 rounded-full border border-indigo-200">📍 {issue.location}</span>}
+                                  </div>
                                   <p className="text-xs text-surface-600 mt-0.5">{issue.msg}</p>
                                   {issue.matchText && <p className="text-[10px] font-mono text-surface-500 mt-1 bg-white/60 rounded px-1.5 py-0.5 inline-block">"{issue.matchText}"</p>}
                                   {issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
