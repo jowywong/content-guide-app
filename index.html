@@ -128,6 +128,45 @@ const checkerRules = [
 
 const KNOWN_ACRONYMS = new Set(['BTC','ETH','USDT','USD','DOGE','NFT','API','FAQ','CTA','UTC','CEO','NBA','FBI','NASA','OKX','APY','DEX','BSC','USDC','SOL']);
 
+// Generate a concrete rewrite suggestion based on the rule + full context line
+function generateRewrite(ruleId, matchText, contextLine) {
+  const ctx = contextLine || '';
+  const mt = matchText || '';
+  if (!ctx) return null;
+  switch (ruleId) {
+    case 'passive': {
+      const m2 = mt.match(/\b(is|are|was|were|be|been|being)\s+(?:being\s+)?([\w]+ed|[\w]+en)\b/i);
+      if (m2) {
+        const verb = m2[2];
+        const activeVerb = verb.replace(/ed$/, 's').replace(/en$/, 's');
+        const rewritten = ctx.replace(new RegExp(mt.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'i'), activeVerb);
+        if (rewritten !== ctx) return `Try: "${rewritten}"`;
+      }
+      return null;
+    }
+    case 'no-contraction': {
+      const contractions = { 'do not':'don\'t','does not':'doesn\'t','is not':'isn\'t','are not':'aren\'t','was not':'wasn\'t','were not':'weren\'t','will not':'won\'t','would not':'wouldn\'t','could not':'couldn\'t','should not':'shouldn\'t','have not':'haven\'t','has not':'hasn\'t','it is':'it\'s','you are':'you\'re','we are':'we\'re','they are':'they\'re','there is':'there\'s','that is':'that\'s','who is':'who\'s','what is':'what\'s' };
+      const replacement = contractions[mt.toLowerCase()];
+      if (replacement) { const rewritten = ctx.replace(new RegExp(mt.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'i'), replacement); return `Try: "${rewritten}"`; }
+      return null;
+    }
+    case 'ellipsis': return `Try: "${ctx.replace(/\.{3}|\u2026/g, '.').replace(/\.\s*\./g,'.')}"`;
+    case 'ampersand': return `Try: "${ctx.replace(/\s&\s/g, ' and ')}"`;
+    case 'exclamation': return `Try: "${ctx.replace(/!{2,}/g, '!')}"`;
+    case 'click-tap': return `Try: "${ctx.replace(/\b(click|tap)\b/gi, 'Select')}"`;
+    case 'see-usage': return `Try: "${ctx.replace(/\bsee\s+(the|your|our|my|this|that)\b/gi, (m,a) => 'Go to '+a)}"`;
+    case 'he-she': return `Try: "${ctx.replace(/\bhe\/she\b/gi,'they').replace(/\bs\/he\b/gi,'they').replace(/\bhis\/her\b/gi,'their').replace(/\bhis or her\b/gi,'their').replace(/\bhim or her\b/gi,'them')}"`;
+    case 'blacklist': { const reps={'blacklist':'blocklist','whitelist':'allowlist','master':'primary','slave':'secondary'}; let r=ctx; for(const[k,v] of Object.entries(reps)) r=r.replace(new RegExp('\\b'+k+'\\b','gi'),v); return `Try: "${r}"`; }
+    case 'ie-eg': return `Try: "${ctx.replace(/\bi\.e\.\b/gi,'that is').replace(/\be\.g\.\b/gi,'for example')}"`;
+    case 'gmt': return `Try: "${ctx.replace(/\bGMT\b/g,'UTC')}"`;
+    case 'got-it': return `Try: "${ctx.replace(/\bgot it\b/gi,'OK')}"`;
+    case 'country': return `Try: "${ctx.replace(/\bcountry\b(?!\s*(\/|or)\s*region)/gi,'country or region')}"`;
+    case 'sorry': { const r=ctx.replace(/\b(we('re| are) sorry[,.]?\s*|sorry[,.]?\s*|apologies[,.]?\s*|we apologize[,.]?\s*)/gi,'').replace(/^\s*[,.]?\s*/,''); return r.trim()&&r.trim()!==ctx.trim()?`Try: "${r.charAt(0).toUpperCase()+r.slice(1)}"`:null; }
+    case 'please': { const r=ctx.replace(/\bplease\s+/gi,'').replace(/\s*,?\s*please\b/gi,''); return r.trim()&&r.trim()!==ctx.trim()?`Try: "${r.charAt(0).toUpperCase()+r.slice(1).trim()}"`:null; }
+    default: return null;
+  }
+}
+
 const SUGGESTED_TAGS = ['Empty state','Error message','Success','CTA','Banner','Push notification','Email','Tooltip','Dialog','Header','Onboarding','Marketing','Product','Settings','Trade','Wallet','Portfolio','Home','Modal','Toast'];
 
 const SCREEN_KEY = 'content-guide-screens';
@@ -232,7 +271,8 @@ function analyzeExtractedText(text, context) {
     let m;
     while ((m = re.exec(text)) !== null) {
       const contextLine = getContextLine(m.index);
-      issues.push({ ...rule, matchText:m[0], contextLine, index:m.index, location:findLocation(m[0]) || findLocation(contextLine) });
+      const rewrite = generateRewrite(rule.id, m[0], contextLine);
+      issues.push({ ...rule, matchText:m[0], contextLine, rewrite, index:m.index, location:findLocation(m[0]) || findLocation(contextLine) });
     }
   }
 
@@ -250,7 +290,8 @@ function analyzeExtractedText(text, context) {
       while ((m = re.exec(text)) !== null) {
         if (m[0] !== term) { // Found the term but case doesn't match
           const contextLine = getContextLine(m.index);
-          issues.push({ id:'glossary-case', name:'Glossary: wrong case', sev:'warning', cat:'Terminology', msg:`"${m[0]}" should be "${term}" — this term is case-sensitive in the OKX glossary.`, sug:`Change to "${term}".`, matchText:m[0], contextLine, index:m.index, location:findLocation(m[0]) || findLocation(contextLine) });
+          const rewrite = contextLine ? `Try: "${contextLine.replace(new RegExp(m[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&')), term)}"` : null;
+          issues.push({ id:'glossary-case', name:'Glossary: wrong case', sev:'warning', cat:'Terminology', msg:`"${m[0]}" should be "${term}" — this term is case-sensitive in the OKX glossary.`, sug:`Change to "${term}".`, rewrite, matchText:m[0], contextLine, index:m.index, location:findLocation(m[0]) || findLocation(contextLine) });
         }
       }
     }
@@ -780,7 +821,8 @@ function Dashboard({ setPage }) {
                                     const i = ctx.toLowerCase().indexOf(mt.toLowerCase());
                                     return <p className="text-[11px] text-surface-600 mt-1 bg-white/60 rounded px-2 py-1 border border-surface-100 leading-relaxed"><span className="text-surface-400">{ctx.substring(0,i)}</span><span className="font-semibold text-amber-700 bg-amber-100 px-0.5 rounded">{ctx.substring(i,i+mt.length)}</span><span className="text-surface-400">{ctx.substring(i+mt.length)}</span></p>;
                                   })() : mt ? <p className="text-[10px] font-mono text-surface-500 mt-1 bg-white/60 rounded px-1.5 py-0.5 inline-block">"{mt}"</p> : null}
-                                  {issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
+                                  {issue.rewrite && <p className="text-[11px] mt-1 px-2 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800"><span className="font-semibold">Suggested rewrite: </span>{issue.rewrite.replace(/^Try:\s*/,'')}</p>}
+                                  {!issue.rewrite && issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
                                 </div>
                               </div>
                             </div>
@@ -910,17 +952,31 @@ function StyleGuide() {
 function runChecks(text) {
   if (!text.trim()) return [];
   const issues = [];
+  const lines = text.split('\n').filter(l=>l.trim());
+  // Helper: get the sentence/line containing an index position
+  function getCtx(index) {
+    for (const line of lines) {
+      const pos = text.indexOf(line);
+      if (index >= pos && index < pos + line.length) return line.trim();
+    }
+    // Fallback: get surrounding sentence by splitting on sentence boundaries
+    const start = Math.max(0, text.lastIndexOf('.', index) + 1, text.lastIndexOf('!', index) + 1, text.lastIndexOf('?', index) + 1);
+    const end = Math.min(text.length, text.indexOf('.', index) === -1 ? text.length : text.indexOf('.', index) + 1);
+    return text.substring(start, end).trim();
+  }
   for (const rule of checkerRules) {
     const re = new RegExp(rule.re.source, rule.re.flags);
     let m;
     while ((m = re.exec(text)) !== null) {
-      issues.push({ ...rule, matchText:m[0], index:m.index });
+      const contextLine = getCtx(m.index);
+      const rewrite = typeof generateRewrite === 'function' ? generateRewrite(rule.id, m[0], contextLine) : null;
+      issues.push({ ...rule, matchText:m[0], contextLine, rewrite, index:m.index });
     }
   }
   // Long sentences
-  text.split(/[.!?]+/).filter(s=>s.trim()).forEach(s => {
+  text.split(/[.!?\n]+/).filter(s=>s.trim()).forEach(s => {
     const wc = s.trim().split(/\s+/).length;
-    if (wc > 25) issues.push({ id:'long', name:'Long sentence', sev:'info', cat:'Readability', msg:`${wc} words. Aim for under 20 for a 5th grade level.`, sug:'Break into shorter sentences.', matchText:s.trim().substring(0,60)+(s.trim().length>60?'...':''), index:text.indexOf(s.trim()) });
+    if (wc > 25) issues.push({ id:'long', name:'Long sentence', sev:'info', cat:'Readability', msg:`${wc} words. Aim for under 20 for a 5th grade level.`, sug:'Break into shorter sentences.', matchText:s.trim().substring(0,60)+(s.trim().length>60?'...':''), contextLine:s.trim(), index:text.indexOf(s.trim()) });
   });
   return issues.sort((a,b)=>a.index-b.index);
 }
@@ -1085,8 +1141,15 @@ function ContentChecker() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium">{issue.name}</span><span className="text-xs text-surface-400">{issue.cat}</span></div>
                         <p className="text-sm text-surface-600 mt-0.5">{issue.msg}</p>
-                        {issue.matchText && <p className="text-xs font-mono text-surface-500 mt-1 bg-white/60 rounded px-2 py-1 inline-block">"{issue.matchText}"</p>}
-                        {issue.sug && <p className="text-xs text-surface-500 mt-1"><span className="font-medium">Suggestion:</span> {issue.sug}</p>}
+                        {issue.contextLine ? (() => {
+                          const ctx = issue.contextLine;
+                          const mt = issue.matchText||'';
+                          const i = ctx.toLowerCase().indexOf(mt.toLowerCase());
+                          if (i >= 0) return <p className="text-xs text-surface-600 mt-1 bg-white/60 rounded px-2 py-1 border border-surface-100 leading-relaxed"><span className="text-surface-400">{ctx.substring(0,i)}</span><span className="font-semibold text-amber-700 bg-amber-100 px-0.5 rounded">{ctx.substring(i,i+mt.length)}</span><span className="text-surface-400">{ctx.substring(i+mt.length)}</span></p>;
+                          return <p className="text-xs font-mono text-surface-500 mt-1 bg-white/60 rounded px-2 py-1 inline-block">"{mt}"</p>;
+                        })() : issue.matchText ? <p className="text-xs font-mono text-surface-500 mt-1 bg-white/60 rounded px-2 py-1 inline-block">"{issue.matchText}"</p> : null}
+                        {issue.rewrite && <p className="text-xs mt-1.5 px-2.5 py-1.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800"><span className="font-semibold">Suggested rewrite: </span>{issue.rewrite.replace(/^Try:\s*/,'')}</p>}
+                        {!issue.rewrite && issue.sug && <p className="text-xs text-surface-500 mt-1"><span className="font-medium">Suggestion:</span> {issue.sug}</p>}
                       </div>
                     </div>
                   </div>
@@ -1747,7 +1810,8 @@ function ScreenLibrary() {
                                   </div>
                                   <p className="text-xs text-surface-600 mt-0.5">{issue.msg}</p>
                                   {renderContext()}
-                                  {issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
+                                  {issue.rewrite && <p className="text-[11px] mt-1.5 px-2 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800"><span className="font-semibold">Suggested rewrite: </span>{issue.rewrite.replace(/^Try:\s*/,'')}</p>}
+                                  {!issue.rewrite && issue.sug && <p className="text-[10px] text-surface-500 mt-0.5"><span className="font-medium">Fix:</span> {issue.sug}</p>}
                                 </div>
                               </div>
                             </div>
