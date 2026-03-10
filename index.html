@@ -188,10 +188,26 @@ function generateRewrite(ruleId, matchText, contextLine) {
           'stolen':'steal','sworn':'swear','worn':'wear'
         };
         const baseVerb = verbMap[participle];
-        if (baseVerb) {
-          return `Try active voice: use "${baseVerb}" instead of "${mt}"`;
+        if (!baseVerb) return `Try active voice: rephrase "${mt}" so the subject performs the action`;
+        try {
+          const idx = ctx.toLowerCase().indexOf(mt.toLowerCase());
+          if (idx < 0) throw 0;
+          const before = ctx.substring(0, idx);
+          const after = ctx.substring(idx + mt.length);
+          // Find subject: text after the last clause boundary before the passive
+          const bm = before.match(/^(.*(?:[,;.!?]\s+|\b(?:and|but|or|so|then|once|after|before|when|if|because|since|while|although|until|unless|that|which|who)\s+))(\S.*)$/si);
+          const prefix = bm ? bm[1] : '';
+          const subject = (bm ? bm[2] : before).trim();
+          if (!subject || subject.length < 2) throw 0;
+          // Lowercase first char unless acronym/proper noun
+          const pronounMap = {'he':'him','she':'her','they':'them','we':'us','it':'it','i':'me','you':'you'};
+          const lc = (s) => pronounMap[s.toLowerCase()] || (/^[A-Z]{2,}|^(I|OKX|P2P|KYC)\b/.test(s) ? s : s[0].toLowerCase() + s.slice(1));
+          const atStart = !prefix || /[.!?]\s*$/.test(prefix);
+          const rewritten = (prefix + (atStart ? 'We ' : 'we ') + baseVerb + ' ' + lc(subject) + after).replace(/\s{2,}/g, ' ').trim();
+          return `Try: "${rewritten}"`;
+        } catch(e) {
+          return `Try active voice: rephrase "${mt}" so the subject performs the action`;
         }
-        return `Try active voice: rephrase "${mt}" so the subject performs the action`;
       }
       return null;
     }
