@@ -137,10 +137,61 @@ function generateRewrite(ruleId, matchText, contextLine) {
     case 'passive': {
       const m2 = mt.match(/\b(is|are|was|were|be|been|being)\s+(?:being\s+)?([\w]+ed|[\w]+en)\b/i);
       if (m2) {
-        const verb = m2[2];
-        const activeVerb = verb.replace(/ed$/, 's').replace(/en$/, 's');
-        const rewritten = ctx.replace(new RegExp(mt.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'i'), activeVerb);
-        if (rewritten !== ctx) return `Try: "${rewritten}"`;
+        const participle = m2[2].toLowerCase();
+        const verbMap = {
+          'capped':'cap','limited':'limit','required':'require','allowed':'allow',
+          'needed':'need','expected':'expect','used':'use','caused':'cause',
+          'created':'create','updated':'update','deleted':'delete','removed':'remove',
+          'added':'add','changed':'change','enabled':'enable','disabled':'disable',
+          'completed':'complete','cancelled':'cancel','canceled':'cancel',
+          'submitted':'submit','confirmed':'confirm','denied':'deny',
+          'rejected':'reject','approved':'approve','locked':'lock','unlocked':'unlock',
+          'blocked':'block','suspended':'suspend','expired':'expire',
+          'exceeded':'exceed','reached':'reach','applied':'apply',
+          'configured':'configure','connected':'connect','disconnected':'disconnect',
+          'failed':'fail','processed':'process','generated':'generate',
+          'displayed':'display','shown':'show','hidden':'hide','chosen':'choose',
+          'taken':'take','given':'give','written':'write','sent':'send',
+          'received':'receive','stored':'store','saved':'save','loaded':'load',
+          'verified':'verify','validated':'validate','encrypted':'encrypt',
+          'decrypted':'decrypt','authorized':'authorize','authenticated':'authenticate',
+          'detected':'detect','matched':'match','selected':'select',
+          'assigned':'assign','linked':'link','shared':'share',
+          'supported':'support','reserved':'reserve','paused':'pause',
+          'stopped':'stop','started':'start','finished':'finish',
+          'transferred':'transfer','deposited':'deposit','withdrawn':'withdraw',
+          'placed':'place','filled':'fill','settled':'settle',
+          'staked':'stake','minted':'mint','burned':'burn','bridged':'bridge',
+          'calculated':'calculate','determined':'determine','established':'establish',
+          'maintained':'maintain','provided':'provide','offered':'offer',
+          'included':'include','excluded':'exclude','restricted':'restrict',
+          'associated':'associate','converted':'convert','exchanged':'exchange',
+          'deducted':'deduct','credited':'credit','debited':'debit',
+          'initiated':'initiate','executed':'execute','triggered':'trigger',
+          'activated':'activate','deactivated':'deactivate',
+          'registered':'register','installed':'install','published':'publish',
+          'distributed':'distribute','allocated':'allocate',
+          'adjusted':'adjust','modified':'modify','replaced':'replace',
+          'resolved':'resolve','closed':'close','opened':'open',
+          'separated':'separate','combined':'combine','merged':'merge',
+          'protected':'protect','secured':'secure',
+          'powered':'power','charged':'charge','funded':'fund',
+          'managed':'manage','handled':'handle','operated':'operate',
+          'designed':'design','built':'build','set':'set','done':'do',
+          'made':'make','found':'find','seen':'see','known':'know',
+          'held':'hold','kept':'keep','brought':'bring','bought':'buy',
+          'sold':'sell','paid':'pay','met':'meet','run':'run',
+          'cut':'cut','put':'put','read':'read','broken':'break',
+          'driven':'drive','eaten':'eat','fallen':'fall','forgotten':'forget',
+          'frozen':'freeze','gotten':'get','gone':'go','grown':'grow',
+          'lost':'lose','proven':'prove','risen':'rise','spoken':'speak',
+          'stolen':'steal','sworn':'swear','worn':'wear'
+        };
+        const baseVerb = verbMap[participle];
+        if (baseVerb) {
+          return `Try active voice: use "${baseVerb}" instead of "${mt}"`;
+        }
+        return `Try active voice: rephrase "${mt}" so the subject performs the action`;
       }
       return null;
     }
